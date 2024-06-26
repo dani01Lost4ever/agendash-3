@@ -59,7 +59,7 @@
     "mongodb-memory-server": "^9.3.0",
     "prettier": "^3.3.2",
     "semantic-release": "^24.0.0",
-    "supertest": "^6.2.2",
+    "supertest": "^7.0.0",
     "ts-node": "^10.9.2"
   },
   "eslintConfig": {
