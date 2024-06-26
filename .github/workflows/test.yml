@@ -8,7 +8,7 @@ jobs:
       matrix:
         mongodb-version: [ 6.0, 7.0 ]
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - name: Use Node.js with cache
         uses: actions/setup-node@v4
