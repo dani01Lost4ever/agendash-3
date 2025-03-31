@@ -1,3 +1,10 @@
+## [1.1.1](https://github.com/sealos/agendash/compare/v1.1.0...v1.1.1) (2025-03-31)
+
+
+### Bug Fixes
+
+* allow express 5 as peer dependency ([6378000](https://github.com/sealos/agendash/commit/6378000520050b00aeb52fb59b3d7b2af3732572))
+
 # [1.1.0](https://github.com/sealos/agendash/compare/v1.0.4...v1.1.0) (2024-06-26)
 
 
