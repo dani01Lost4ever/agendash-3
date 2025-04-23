@@ -1,49 +1,71 @@
-# Agendash
+# Agendash Enhanced (Fork by [Your Name/Handle])
 
-A Dashboard for [Agenda](https://github.com/agenda/agenda).
+A significantly enhanced dashboard for [Agenda](https://github.com/agenda/agenda), based on the original [Agendash](https://github.com/sealos/agendash).
+
+This version focuses on providing a modern user interface, detailed task execution logging, and improved usability.
 
 ---
 
-### Features
+## ✨ Key Enhancements in this Version
 
-- Job status auto-refreshes: 60-second polling by default.
-- Schedule a new job from the UI.
-- Dive in to see more details about the job, like the json data.
-- Requeue a job. Clone the data and run immediately.
-- Delete jobs. Useful for cleaning up old completed jobs.
-- Search jobs by name and metadata. Supports querying by Mongo Object Id.
-- Pagination
-- Responsive UI
+*   **Modern User Interface:** Complete overhaul of the frontend using Bootstrap 4/5 principles for a cleaner, more responsive, and visually appealing experience across all components (Sidebar, Job List, Job Details, Modals, etc.).
+*   **Task Execution Logging:**
+  *   Introduced automatic logging for job `start`, `complete`, and `fail` events.
+  *   Logs are stored in a dedicated MongoDB collection (`tasklogs` by default) using Mongoose.
+  *   Added a "Show Execution Logs" button in the Job Details modal to view the specific logs for a selected job.
+*   **Dedicated Mongoose Connection:**
+  *   Agendash now requires a **separate Mongoose connection string** during initialization.
+  *   This connection is used exclusively for the internal task logging model, keeping it independent from your main application's Mongoose connection or Agenda's internal driver connection.
+*   **Improved Modals:** Enhanced styling and user feedback for confirmation modals (Delete, Requeue) and the new Job creation modal, including loading states.
+*   **Code Refinements:** Updated backend logic, improved aggregation queries, and added better error handling. Frontend components were refactored for clarity (e.g., dedicated `task-logs` component).
+*   **Automatic Index Creation:** Necessary Agenda database indexes for sorting are now created automatically when Agenda emits the `ready` event.
+
+---
+
+### Features (Including Original)
+
+*   Job status auto-refreshes (polling interval configurable via frontend search bar).
+*   Schedule a new job from the UI.
+*   Dive in to see more details about the job, like the JSON data.
+*   **View detailed execution logs for each job.**
+*   Requeue a job (creates a new instance to run immediately).
+*   Delete jobs.
+*   Search jobs by name and metadata (supports querying by Mongo Object ID, numbers, strings, and basic regex).
+*   Pagination.
+*   **Modern, Responsive UI.**
 
 ---
 
 ### Screenshots
 
-#### Dashboard
+*(Note: Screenshots below might be from the original version and need updating to reflect the new UI)*
+
+#### Dashboard (Example - Needs Update)
 
 ![Auto-refresh list of jobs](all-jobs.png)
 
 ---
 
-#### Create jobs
+#### Create jobs (Example - Needs Update)
 
 ![See job details, requeue or delete jobs](create-job.png)
 
 ---
 
-#### Search by name, metadata, job status
+#### Search by name, metadata, job status (Example - Needs Update)
 
 ![Search for a job by name or metadata ](search.png)
 
 ---
 
-#### Responsive UI
+#### Responsive UI (Example - Needs Update)
 
 ![Mobile UI small devices](mobile-ui-sm.png)
 
 ![Mobile UI extra small devices](mobile-ui-xs.png)
 
 ---
+
 
 # Troubleshooting
 
