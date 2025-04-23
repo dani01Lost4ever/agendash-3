@@ -208,10 +208,10 @@ const app = Vue.component("app", {
 
     <div class="container-fluid">
       <div class="">
-        <div class="navbar navbar-dark fixed-top bg-dark flex-md-nowrap p-0 shadow">
+        <div class="navbar navbar-dark fixed-top licensesync-color flex-md-nowrap p-0 shadow">
           <div class="d-flex">
             <div>
-              <a class="navbar-brand col-sm-10 col-md-10 mr-0 tittle"> Agendash</a>
+              <a class="navbar-brand col-sm-10 col-md-10 mr-0 tittle"> Agendash 3</a>
             </div>
             <div class='d-md-none w-50'>
               <div id="mySidebar" class="sidebar-collapse" @click="closeNav()">
@@ -275,9 +275,9 @@ const app = Vue.component("app", {
             </div>
           </main>
       </div>
-      <div class="row bg-dark py-3">
+      <div class="row licensesync-color  py-3">
         <div class="col-6 m-auto text-light text-center">
-          <small>UI written by <a class="text-light" href="https://www.softwareontheroad.com/about" target="_BLANK">Sam Quinn</a>. Backend by Agenda team.</small>
+          <small>UI written by <a class="text-light" href="https://www.softwareontheroad.com/about" target="_BLANK">Sam Quinn</a>. Backend by Agenda team. Modified by Daniel Busetto</small>
         </div>
       </div>
       <job-detail v-if="showDetail" v-bind:job="jobData"></job-detail>

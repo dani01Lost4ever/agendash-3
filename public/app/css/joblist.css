@@ -1,0 +1,36 @@
+﻿.action-btn {
+  cursor: pointer;
+  vertical-align: middle;
+  font-size: 20px; /* Slightly larger icons */
+  transition: color 0.15s ease-in-out;
+}
+.action-btn:hover {
+  opacity: 0.7;
+}
+.material-icons.sortable {
+  vertical-align: middle;
+  font-size: 20px;
+  opacity: 0.6;
+}
+.material-icons.sortableinactive { /* Keep if used */
+  vertical-align: middle;
+  font-size: 20px;
+  opacity: 0.3;
+}
+th.clickable {
+  cursor: pointer;
+}
+th.clickable:hover {
+  background-color: #e9ecef;
+}
+.table td, .table th {
+  vertical-align: middle; /* Ensure vertical alignment */
+}
+.card-header label.clickable {
+  cursor: pointer;
+}
+/* Ensure checkbox doesn't prevent card click */
+.card .form-check-input {
+  position: relative;
+  z-index: 1;
+}

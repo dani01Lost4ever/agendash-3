@@ -4,6 +4,7 @@ import bodyParser from 'body-parser';
 
 import { AgendashController } from './controllers/agendash';
 import { Agenda } from '@sealos/agenda';
+import {ConnectOptions} from "mongoose";
 
 const CSP = {
   "default-src": [
@@ -45,6 +46,15 @@ function expressMiddleware(agendash: AgendashController) {
   });
 
   expressApp.use('/', express.static(path.join(__dirname, '../public')));
+
+  expressApp.get('/api/jobs/:jobId/logs', async (request, response) => {
+    try {
+      const logs = await agendash.getTaskLogs(request.params.jobId);
+      response.json(logs);
+    } catch (error) {
+      response.status(400).json(error);
+    }
+  });
 
   expressApp.get('/api', async (request, response) => {
     try {
@@ -124,8 +134,11 @@ function expressMiddleware(agendash: AgendashController) {
   return expressApp;
 }
 
-export default function Agendash(agenda: Agenda) {
-  const agendash = new AgendashController(agenda);
-
-  return expressMiddleware(agendash);
+export default function Agendash(agenda: Agenda, mongooseConnectionString: string, mongooseConnectOptions?: ConnectOptions ) {
+  const agendash = new AgendashController(agenda, mongooseConnectionString, mongooseConnectOptions);
+  const middleware = expressMiddleware(agendash);
+  return {
+    middleware,
+    controller: agendash
+  };
 }

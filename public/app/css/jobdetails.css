@@ -1,0 +1,32 @@
+﻿.dl-horizontal dt {
+  font-weight: 600;
+  text-align: left;
+  margin-bottom: 0.5rem;
+}
+@media (min-width: 576px) {
+  .dl-horizontal dt {
+    text-align: right;
+    margin-bottom: 0;
+  }
+}
+.dl-horizontal dd {
+  margin-bottom: 0.5rem;
+}
+.json-editor {
+  font-size: 0.85rem;
+}
+.failure-reason {
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 150px;
+  overflow-y: auto;
+  background-color: rgba(255, 255, 255, 0.7);
+  padding: 5px;
+  border-radius: 4px;
+}
+.bg-danger-light {
+  background-color: #f8d7da;
+}
+/* Add light background styles if not defined globally */
+.bg-success-light { background-color: #eaf6ec; }
+.bg-info-light { background-color: #eaf7f9; }

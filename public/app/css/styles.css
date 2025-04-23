@@ -1,6 +1,6 @@
 :root{
   --secondary: #ffffff;
-  --primary: #2b2b2b;
+  --primary: #002e5f;
   --warning: rgb(255, 94, 0);
   --pill-own-time: #00b7ff;
 }
@@ -231,4 +231,7 @@ code {
   color: white;
   padding: 5px 0 0 0;
   border: none;
+}
+.licensesync-color{
+  background-color: #002e5f;
 }

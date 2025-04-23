@@ -1,0 +1,40 @@
+﻿/* public/app/css/modern-styles.css */
+.task-logs .log-entry {
+  transition: all 0.2s ease;
+}
+
+.task-logs .log-entry:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.task-logs .card-body {
+  transition: background-color 0.3s ease;
+}
+
+.task-logs pre {
+  font-size: 0.85rem;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.modal-backdrop {
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+.modal-dialog {
+  margin-top: 4rem;
+}
+
+.mdi-spin {
+  animation: spin 1s infinite linear;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

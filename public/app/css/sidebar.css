@@ -1,0 +1,26 @@
+﻿.clickable-row {
+  cursor: pointer;
+  transition: background-color 0.2s ease-in-out;
+}
+.clickable-row:hover {
+  background-color: #e9ecef; /* Light grey hover */
+}
+.job-type-header {
+  background-color: #f8f9fa; /* Slightly different background for header */
+  border: 1px solid #dee2e6;
+}
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+.list-group-item {
+  border: none; /* Remove default borders */
+  border-bottom: 1px solid #f1f1f1; /* Add subtle bottom border */
+}
+.list-group-item:last-child {
+  border-bottom: none;
+}
