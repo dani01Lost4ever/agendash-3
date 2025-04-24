@@ -49,15 +49,6 @@ function expressMiddleware(agendash: AgendashController) {
 
   router.use('/', express.static(path.join(__dirname, '../public')));
 
-  router.get('/api/jobs/:jobId/logs', async (request, response) => {
-    try {
-      const logs = await agendash.getTaskLogs(request.params.jobId);
-      response.json(logs);
-    } catch (error) {
-      response.status(400).json(error);
-    }
-  });
-
   router.get('/api', async (request, response) => {
     try {
       const {
@@ -85,6 +76,15 @@ function expressMiddleware(agendash: AgendashController) {
         limit,
       });
       response.json(apiResponse);
+    } catch (error) {
+      response.status(400).json(error);
+    }
+  });
+
+  router.get('/api/jobs/:jobId/logs', async (request, response) => {
+    try {
+      const logs = await agendash.getTaskLogs(request.params.jobId);
+      response.json(logs);
     } catch (error) {
       response.status(400).json(error);
     }

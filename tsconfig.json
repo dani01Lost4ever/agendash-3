@@ -15,7 +15,7 @@
 		"noImplicitAny": false,
 		"removeComments": false,
 		"emitDecoratorMetadata": true,
-		"composite": true,
+		"composite": false,
 		"experimentalDecorators": true,
 		"strictPropertyInitialization": false,
 		"resolveJsonModule": true,

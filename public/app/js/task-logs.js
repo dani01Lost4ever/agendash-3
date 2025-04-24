@@ -7,7 +7,7 @@
   methods: {
     fetchLogs() {
       this.loading = true;
-      axios.get(`/api/jobs/${this.jobId}/logs`)
+      axios.get(`api/jobs/${this.jobId}/logs`)
         .then(response => {
           this.logs = response.data;
         })
