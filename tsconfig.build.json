@@ -16,7 +16,7 @@
 		"noImplicitAny": false, // <-- get rid of this!
 		"removeComments": false, // <-- do not remove comments (needed for @deprecated notices etc)
 		"emitDecoratorMetadata": true,
-		"composite": true,
+		"composite": false,
 		"experimentalDecorators": true,
 		"strictPropertyInitialization": false,
 		"resolveJsonModule": true,
