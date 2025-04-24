@@ -1,7 +1,7 @@
 {
-  "name": "@sealos/agendash",
-  "version": "1.1.1",
-  "description": "A fork of dashboard for Agenda.js with Pagination and Search capabilities",
+  "name": "agendash3-rework",
+  "version": "3.0.1",
+  "description": "A fork of dashboard for Agenda.js with Pagination, Search cpabilities, Log managment and new Graphics",
   "main": "dist/app.js",
   "engines": {
     "node": ">=20.0.0"
@@ -25,12 +25,9 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/sealos/agendash.git"
+    "url": "git+https://github.com/dani01Lost4ever/agendash-3.git"
   },
-  "bugs": {
-    "url": "https://github.com/sealos/agendash/issues"
-  },
-  "homepage": "https://github.com/sealos/agendash#readme",
+  "homepage": "https://github.com/dani01Lost4ever/agendash-3#readme",
   "license": "MIT",
   "files": [
     "bin",
@@ -50,6 +47,7 @@
     "@semantic-release/git": "^10.0.1",
     "@types/express": "^5.0.1",
     "@types/mocha": "^10.0.6",
+    "@types/node": "^22.14.1",
     "@types/supertest": "^6.0.2",
     "@typescript-eslint/eslint-plugin": "^6.20.0",
     "@typescript-eslint/parser": "^6.20.0",
@@ -60,7 +58,8 @@
     "prettier": "^3.3.2",
     "semantic-release": "^24.0.0",
     "supertest": "^7.0.0",
-    "ts-node": "^10.9.2"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
   },
   "eslintConfig": {
     "parserOptions": {
@@ -78,5 +77,13 @@
   "packageManager": "yarn@4.3.0+sha512.1606bef7c84bc7d83b8576063de2fd08f7d69f9939015bed800f9585a002390268ecc777e9feeba7e26e9556aef6beaad4806968db2182ab5dd3e955ab3b9a0b",
   "dependencies": {
     "mongoose": "^8.13.2"
+  },
+  "directories": {
+    "lib": "lib",
+    "test": "test"
+  },
+  "author": "Daniel Busetto",
+  "bugs": {
+    "url": "https://github.com/dani01Lost4ever/agendash-3/issues"
   }
 }

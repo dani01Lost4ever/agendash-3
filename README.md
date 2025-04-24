@@ -1,4 +1,4 @@
-# Agendash Enhanced (Fork by [Your Name/Handle])
+# Agendash Enhanced Dashboard
 
 A significantly enhanced dashboard for [Agenda](https://github.com/agenda/agenda), based on the original [Agendash](https://github.com/sealos/agendash).
 

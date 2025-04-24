@@ -3,18 +3,17 @@
 		"outDir": "./dist",
 		"rootDir": "./lib",
 
-		// target settings for node 10
 		"module": "commonjs",
-		"target": "es2019",
-		"lib": ["es2019"],
-		// "lib": ["esnext", "esnext.asynciterable", "dom"],
+		"target": "es2023",
+    "lib": ["es2023", "dom"],
 
-		// other best practice configs
+
+    // other best practice configs
 		"moduleResolution": "node",
 		"strict": true,
-        "esModuleInterop": true,
-		"noImplicitAny": false, // <-- get rid of this!
-		"removeComments": false, // <-- do not remove comments (needed for @deprecated notices etc)
+    "esModuleInterop": true,
+		"noImplicitAny": false,
+		"removeComments": false,
 		"emitDecoratorMetadata": true,
 		"composite": true,
 		"experimentalDecorators": true,
