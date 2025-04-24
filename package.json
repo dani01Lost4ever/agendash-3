@@ -1,6 +1,6 @@
 {
   "name": "agendash3-rework",
-  "version": "3.0.2",
+  "version": "3.0.3",
   "description": "A fork of dashboard for Agenda.js with Pagination, Search cpabilities, Log managment and new Graphics",
   "main": "dist/app.js",
   "engines": {
