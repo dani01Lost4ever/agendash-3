@@ -42,18 +42,14 @@ export class AgendashController {
 
     // --- Agenda Event Listeners (use this.TaskLogModel) ---
     agenda.on('ready', () => {
-      // Existing ready logic...
       const collection = agenda._collection;
-      collection.createIndexes(
-        [
-          {key: {nextRunAt: -1, lastRunAt: -1, lastFinishedAt: -1}},
-          {key: {name: 1, nextRunAt: -1, lastRunAt: -1, lastFinishedAt: -1}},
-        ],
-        // @ts-expect-error
-        (error) => {
-          if (error) { console.error("Agendash: Error creating Agenda indexes", error); }
-        },
-      ).then(() => { /* Indexes created */ }).catch(err => console.error("Agendash: Error creating Agenda indexes", err));
+      // Use either Promise-based approach or callback, not both
+      collection.createIndexes([
+        { key: { nextRunAt: -1, lastRunAt: -1, lastFinishedAt: -1 } },
+        { key: { name: 1, nextRunAt: -1, lastRunAt: -1, lastFinishedAt: -1 } }
+      ]).catch(err => {
+        console.error("Agendash: Error creating Agenda indexes", err);
+      });
     });
 
     agenda.on('start', job => {
