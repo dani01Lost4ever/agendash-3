@@ -38,27 +38,25 @@ This version focuses on providing a modern user interface, detailed task executi
 
 ### Screenshots
 
-*(Note: Screenshots below might be from the original version and need updating to reflect the new UI)*
-
-#### Dashboard (Example - Needs Update)
+#### Dashboard
 
 ![Auto-refresh list of jobs](all-jobs.png)
 
 ---
 
-#### Create jobs (Example - Needs Update)
+#### Create jobs
 
 ![See job details, requeue or delete jobs](create-job.png)
 
 ---
 
-#### Search by name, metadata, job status (Example - Needs Update)
+#### Search by name, metadata, job status
 
 ![Search for a job by name or metadata ](search.png)
 
 ---
 
-#### Responsive UI (Example - Needs Update)
+#### Responsive UI
 
 ![Mobile UI small devices](mobile-ui-sm.png)
 
@@ -81,18 +79,10 @@ db.agendaJobs.ensureIndex({
 }, "agendash")
 ```
 
----
-
-# Roadmap
-
-- [ ] Get more test coverage
-- [ ] Add middlewares for fastify, and other express-like libraries
-- [ ] You decide! Submit a feature request
-
 ### Install
 
 ```
-npm install --save agendash
+npm i agendash3-rework
 ```
 
 _Note_: `Agendash` requires mongodb version >2.6.0 to perform the needed aggregate queries. This is your mongo database version, not your node package version! To check your database version, connect to mongo and run `db.version()`.
@@ -118,7 +108,8 @@ var agenda = new Agenda({ db: { address: "mongodb://127.0.0.1/agendaDb" } });
 // or provide your own mongo client:
 // var agenda = new Agenda({mongo: myMongoClient})
 
-app.use("/dash", Agendash(agenda));
+const agendash = Agendash(agenda, "mongodb://127.0.0.1/agendaDb");
+app.use('/dash', agendash.middleware);
 
 // ... your other routes
 
@@ -246,19 +237,19 @@ Then browse to `http://localhost:3002/`.
 Agendash comes with a standalone Express app which you can use like this:
 
 ```bash
-./node_modules/.bin/agendash --db=mongodb://localhost/agendaDb --collection=agendaCollection --port=3002
+./node_modules/.bin/agendash3-rework --db=mongodb://localhost/agendaDb --collection=agendaCollection --port=3002
 ```
 
 or like this, for default collection `agendaJobs` and default port `3000`:
 
 ```bash
-./node_modules/.bin/agendash --db=mongodb://localhost/agendaDb
+./node_modules/.bin/agendash3-rework --db=mongodb://localhost/agendaDb
 ```
 
 If you are using npm >= 5.2, then you can use [npx](https://medium.com/@maybekatz/introducing-npx-an-npm-package-runner-55f7d4bd282b):
 
 ```bash
-npx agendash --db=mongodb://localhost/agendaDb --collection=agendaCollection --port=3002
+npx agendash3-rework --db=mongodb://localhost/agendaDb --collection=agendaCollection --port=3002
 ```
 
 Then browse to `http://localhost:3002/`.
