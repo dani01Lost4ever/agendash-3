@@ -1,0 +1,11 @@
+.json-editor {
+  font-size: 0.85rem;
+}
+.json-editor-input {
+  min-height: 150px;
+  max-height: 250px;
+}
+.json-editor.is-invalid {
+  border-color: var(--bs-form-invalid-border-color) !important;
+}
+.modal-dialog.modal-lg { max-width: 800px; } /* Standard large modal width */

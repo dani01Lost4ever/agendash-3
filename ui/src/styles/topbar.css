@@ -1,0 +1,9 @@
+.topbar-label {
+  width: 70px;
+}
+.topbar-number {
+  width: 80px;
+}
+.topbar-check {
+  min-height: 0;
+}

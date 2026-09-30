@@ -1,8 +1,8 @@
 name: Publish Release
+# Manual only for now: a push to master must not publish to npm until the release pipeline
+# (trusted publishing and the right version tags) is in place.
 on:
-  push:
-    branches:
-      - master
+  workflow_dispatch:
 
 jobs:
   semantic-release:
@@ -11,20 +11,21 @@ jobs:
 
     env:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # The release does not run tests, so skip mongodb-memory-server's MongoDB download
+      MONGOMS_DISABLE_POSTINSTALL: '1'
 
     steps:
       - name: Git checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Use Node.js with cache
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
           cache: 'npm'
-          cache-dependency-path: package-lock.json
 
       - name: Install modules
-        run: npm i --prefer-offline --no-audit
+        run: npm ci --no-audit
 
       - name: Release
         run: npm run release

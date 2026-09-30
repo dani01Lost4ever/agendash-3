@@ -1,8 +1,0 @@
-﻿.json-editor {
-  font-size: 0.85rem;
-}
-/* Ensure Prism editor takes height correctly */
-.prism-editor-wrapper {
-  height: 100%;
-}
-.modal-dialog.modal-lg { max-width: 800px; } /* Standard large modal width */
