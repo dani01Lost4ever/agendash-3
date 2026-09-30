@@ -1,7 +1,7 @@
 {
 	"compilerOptions": {
 		"outDir": "./dist",
-		"rootDir": "./lib",
+		"rootDir": "./src",
 
 		"module": "commonjs",
 		"target": "es2023",
@@ -25,7 +25,6 @@
 	},
 	"exclude": ["node_modules", "**/__tests__"],
 	"include": [
-    "./lib",
-    "./dist"
+    "./src"
   ]
 }

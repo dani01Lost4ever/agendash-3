@@ -3,10 +3,10 @@
 
 import http from 'http';
 import { Agenda } from '@sealos/agenda';
-import Agendash from './lib/app'; // Import the function that returns { middleware, controller }
+import Agendash from '../src'; // Import the function that returns { middleware, controller }
 import express from 'express';
 import { MongoMemoryServer } from 'mongodb-memory-server';
-import {AgendashController} from "./lib/controllers/agendash";
+import { AgendashController } from "../src";
 
 async function start() {
   let mongoServer: MongoMemoryServer | null = null;
@@ -34,8 +34,8 @@ async function start() {
     console.log('Agenda connected and started.');
 
     console.log('Initializing Agendash...');
-    // Call Agendash, providing the Agenda instance and the SAME mongo URI for Mongoose
-    const { middleware: agendashMiddleware, controller } = Agendash(agenda, mongoUri);
+    // Task logs are stored in the database Agenda already uses
+    const { middleware: agendashMiddleware, controller } = Agendash(agenda);
     agendashController = controller; // Assign controller for shutdown handler
 
     const app = express();
@@ -57,7 +57,7 @@ async function start() {
     console.error('Failed to start Agendash standalone:', error);
     // Ensure resources are cleaned up even if startup fails partially
     if (agenda) await agenda.stop();
-    if (agendashController) await agendashController.closeMongooseConnection();
+    if (agendashController) await agendashController.close();
     if (mongoServer) await mongoServer.stop();
     process.exit(1);
   }
@@ -79,10 +79,9 @@ async function start() {
         console.log('Agenda stopped.');
       }
 
-      // Close Agendash's dedicated Mongoose connection
+      // Detach Agendash from Agenda's events
       if (agendashController) {
-        await agendashController.closeMongooseConnection();
-        // Log message is inside closeMongooseConnection
+        await agendashController.close();
       }
 
       // Stop the in-memory MongoDB server

@@ -8,5 +8,5 @@
     "timeout": 25000,
     "recursive": true,
     "ui": "bdd",
-    "spec": ["test/**/*.test.ts", "src/**/*.test.ts"]
+    "spec": ["test/**/*.test.ts"]
 }

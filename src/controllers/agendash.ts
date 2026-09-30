@@ -1,101 +1,78 @@
-// F:/agendash-3/lib/controllers/agendash.ts
-import { Document as MongoDocument, ObjectId } from 'mongodb'; // Rename Document to avoid clash
+import { Document as MongoDocument } from 'mongodb';
 import { Agenda, JobAttributesData } from '@sealos/agenda';
-import mongoose, { Connection as MongooseConnection, Model as MongooseModel, ConnectOptions } from 'mongoose'; // Import Mongoose types
-import { taskLogSchema, ITaskLog } from "../task_log_schema"; // Import the schema and interface
+
+import { TaskLogStore } from '../task-logs';
+import type { AgendashOptions } from '../options';
+import { objectIdFor } from '../utils/object-id';
 
 export class AgendashController {
-  private readonly mongooseConnection: MongooseConnection;
-  private readonly TaskLogModel: MongooseModel<ITaskLog>;
+  private readonly taskLogs?: TaskLogStore;
+  private readonly detachListeners: Array<() => void> = [];
 
   constructor(
     private readonly agenda: Agenda,
-    // Add parameters for Mongoose connection
-    mongooseConnectionString: string,
-    mongooseConnectOptions?: ConnectOptions // Optional Mongoose connection options
+    options: AgendashOptions = {},
   ) {
-    if (!mongooseConnectionString) {
-      throw new Error("AgendashController requires a mongooseConnectionString.");
-    }
-
-    // --- Create and manage dedicated Mongoose connection ---
-    this.mongooseConnection = mongoose.createConnection(mongooseConnectionString, {
-      ...mongooseConnectOptions,
-      // Recommended options (though many are default/deprecated in newer Mongoose)
-      // useNewUrlParser: true,
-      // useUnifiedTopology: true,
-    });
-
-    this.mongooseConnection.on('error', (err) => {
-      console.error(`Agendash Mongoose connection error (URI: ${mongooseConnectionString}):`, err);
-      // Decide how to handle this - maybe log, maybe throw, maybe set a status flag
-    });
-    this.mongooseConnection.on('connected', () => {
-      console.log(`Agendash Mongoose connected successfully (URI: ${mongooseConnectionString})`);
-    });
-    this.mongooseConnection.on('disconnected', () => {
-      console.log(`Agendash Mongoose disconnected (URI: ${mongooseConnectionString})`);
-    });
-
-    // --- Compile the TaskLog model using the dedicated connection ---
-    this.TaskLogModel = this.mongooseConnection.model<ITaskLog>('TaskLog', taskLogSchema);
-
-    // --- Agenda Event Listeners (use this.TaskLogModel) ---
-    agenda.on('ready', () => {
-      const collection = agenda._collection;
-      // Use either Promise-based approach or callback, not both
-      collection.createIndexes([
-        { key: { nextRunAt: -1, lastRunAt: -1, lastFinishedAt: -1 } },
-        { key: { name: 1, nextRunAt: -1, lastRunAt: -1, lastFinishedAt: -1 } }
-      ]).catch(err => {
-        console.error("Agendash: Error creating Agenda indexes", err);
+    // Indexes used by the job list sort. `_ready` also resolves when Agenda was ready
+    // before Agendash was created, which a 'ready' listener would miss.
+    agenda._ready
+      .then(() =>
+        agenda._collection.createIndexes([
+          { key: { nextRunAt: -1, lastRunAt: -1, lastFinishedAt: -1 } },
+          { key: { name: 1, nextRunAt: -1, lastRunAt: -1, lastFinishedAt: -1 } },
+        ]),
+      )
+      .catch((err) => {
+        console.error('Agendash: Error creating Agenda indexes', err);
       });
-    });
 
-    agenda.on('start', job => {
-      // Use the controller's model instance
-      this.TaskLogModel.create({
+    if (options.taskLogs === false) {
+      return;
+    }
+    const taskLogs = TaskLogStore.create(agenda, options.taskLogs);
+    this.taskLogs = taskLogs;
+
+    const listen = (event: string, listener: (...args: any[]) => void) => {
+      agenda.on(event, listener);
+      this.detachListeners.push(() => agenda.off(event, listener));
+    };
+
+    listen('start', (job) => {
+      taskLogs.add({
         taskId: job.attrs._id.toString(),
         taskName: job.attrs.name,
         status: 'started',
         message: 'Task started',
-        data: job.attrs.data
-      }).catch(err => console.error("Agendash: Error logging 'start' event:", err)); // Add logging prefix
+        data: job.attrs.data,
+      }).catch(err => console.error("Agendash: Error logging 'start' event:", err));
     });
 
-    agenda.on('complete', job => {
-      // Use the controller's model instance
-      this.TaskLogModel.create({
+    listen('complete', (job) => {
+      taskLogs.add({
         taskId: job.attrs._id.toString(),
         taskName: job.attrs.name,
         status: 'completed',
         message: 'Task completed successfully',
-        data: job.attrs.data
-      }).catch(err => console.error("Agendash: Error logging 'complete' event:", err)); // Add logging prefix
+        data: job.attrs.data,
+      }).catch(err => console.error("Agendash: Error logging 'complete' event:", err));
     });
 
-    agenda.on('fail', (err, job) => {
-      // Use the controller's model instance
-      this.TaskLogModel.create({
+    listen('fail', (err, job) => {
+      taskLogs.add({
         taskId: job.attrs._id.toString(),
         taskName: job.attrs.name,
         status: 'failed',
-        message: err?.message || 'Unknown failure reason', // Safer access to error message
-        data: job.attrs.data
-      }).catch(err => console.error("Agendash: Error logging 'fail' event:", err)); // Add logging prefix
+        message: err?.message || 'Unknown failure reason',
+        data: job.attrs.data,
+      }).catch(err => console.error("Agendash: Error logging 'fail' event:", err));
     });
   }
 
-  // Method to retrieve logs (use this.TaskLogModel)
+  // Newest first, at most 100 entries
   getTaskLogs = async (taskId: string) => {
-    // Use the controller's model instance
-    return this.TaskLogModel.find({ taskId })
-      .sort({ timestamp: -1 }) // Newest first
-      .limit(100) // Keep limit reasonable
-      .lean(); // Use lean for performance if not modifying docs
+    return this.taskLogs ? this.taskLogs.find(taskId, 100) : [];
   }
 
-  // --- Other methods remain largely the same, as they interact with Agenda's collection ---
   getJobs = (job: string, state: string, options: {
     query: string,
     property: string,
@@ -111,7 +88,7 @@ export class AgendashController {
     if (options.query && options.property) {
       if (options.isObjectId) {
         try { // Add validation for ObjectId
-          preMatch[options.property] = new ObjectId(options.query);
+          preMatch[options.property] = new (objectIdFor(this.agenda._collection))(options.query);
         } catch (e) {
           console.warn(`Agendash: Invalid ObjectId format provided for query: ${options.query}`);
           // Decide how to handle - return empty, throw, etc. Here we might let the query fail.
@@ -320,7 +297,6 @@ export class AgendashController {
     state,
     { query: q, property, isObjectId, skip, limit },
   ) => {
-    // This method orchestrates others, no direct Mongoose changes needed here
     limit = Number.parseInt(limit, 10) || 200;
     skip = Number.parseInt(skip, 10) || 0;
 
@@ -354,12 +330,11 @@ export class AgendashController {
   };
 
   requeueJobs = async (jobIds) => {
-    // Interacts with Agenda's collection and methods, no Mongoose changes needed
     const collection = this.agenda._collection;
-    // ... (keep existing logic) ...
     if (!Array.isArray(jobIds) || jobIds.length === 0) {
       throw new Error('No job IDs provided for requeue');
     }
+    const ObjectId = objectIdFor(collection);
     const objectIds = jobIds.map((jobId) => new ObjectId(jobId)); // Convert upfront
 
     const jobs = await collection
@@ -385,17 +360,16 @@ export class AgendashController {
   };
 
   deleteJobs = (jobIds) => {
-    // Interacts with Agenda's cancel method, no Mongoose changes needed
     if (!Array.isArray(jobIds) || jobIds.length === 0) {
       return Promise.resolve({ deletedCount: 0 }); // Return consistent promise format
     }
+    const ObjectId = objectIdFor(this.agenda._collection);
     return this.agenda.cancel({
       _id: { $in: jobIds.map((jobId) => new ObjectId(jobId)) },
     });
   };
 
   createJob = <T extends JobAttributesData>(jobName: string, jobSchedule: string, jobRepeatEvery: string, jobData: T) => {
-    // Interacts with Agenda's create method, no Mongoose changes needed
     // @TODO: Need to validate user input.
     if (!jobName) {
       return Promise.reject(new Error('Job name is required'));
@@ -436,11 +410,14 @@ export class AgendashController {
     return job.save();
   };
 
-  // Method to gracefully close the Mongoose connection
-  async closeMongooseConnection(): Promise<void> {
-    if (this.mongooseConnection) {
-      await this.mongooseConnection.close();
-      console.log(`Agendash Mongoose connection closed (URI: ${this.mongooseConnection.name})`);
-    }
+  /** Stops listening to Agenda events and closes the dedicated task-log connection, if any. */
+  async close(): Promise<void> {
+    this.detachListeners.splice(0).forEach((detach) => detach());
+    await this.taskLogs?.close();
+  }
+
+  /** @deprecated Use `close()`. */
+  closeMongooseConnection(): Promise<void> {
+    return this.close();
   }
 }

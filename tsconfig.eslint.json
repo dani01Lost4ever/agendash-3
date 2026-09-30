@@ -1,8 +1,8 @@
 {
   "extends": "./tsconfig.json",
   "include": [
-    "lib",
-    "standalone.ts",
+    "src",
+    "examples/**/*.ts",
     "test/**/*.ts",
     ".eslintrc.js",
     "*.js"
