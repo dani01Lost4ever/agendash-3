@@ -1,10 +1,62 @@
-import { Document as MongoDocument } from 'mongodb';
+import type { Document as MongoDocument, ObjectId } from 'mongodb';
 import { Agenda, JobAttributesData } from '@sealos/agenda';
 
 import { AgendashError } from '../errors';
 import { TaskLogStore } from '../task-logs';
 import { normalizeOptions, type AgendashOptions, type LegacyConnectOptions } from '../options';
 import { objectIdFor } from '../utils/object-id';
+import {
+  JOB_STATES,
+  isJobState,
+  jobStateFields,
+  nameMatch,
+  propertyMatch,
+  sortStage,
+  type JobState,
+  type SortDirection,
+} from './job-query';
+
+export interface JobListOptions {
+  /** Job name, or `/pattern/` for a case-insensitive regex. */
+  job?: string;
+  state?: string;
+  /** Value searched in `property`. */
+  query?: string;
+  property?: string;
+  isObjectId?: boolean;
+  limit: number;
+  skip: number;
+  sortBy?: string;
+  sortDir?: SortDirection;
+}
+
+/** Query string parameters of `GET /api`. */
+export interface ApiQuery {
+  query?: string;
+  property?: string;
+  isObjectId?: string | boolean;
+  skip?: string;
+  limit?: string;
+  sortBy?: string;
+  sortDir?: string;
+}
+
+export type JobListItem = { job: MongoDocument; _id: unknown } & Record<JobState, boolean>;
+
+export type OverviewItem = {
+  _id?: string;
+  displayName: string;
+  total: number;
+} & Partial<Record<JobState, number>>;
+
+export interface JobUpdateResult {
+  /** Jobs the change applied to. */
+  updated: number;
+  /** Jobs whose document actually changed (e.g. not already disabled). */
+  changed: number;
+  /** Jobs left untouched because they are running (or disabled, when running now). */
+  skipped: number;
+}
 
 export class AgendashController {
   private readonly taskLogs?: TaskLogStore;
@@ -79,342 +131,256 @@ export class AgendashController {
     return this.taskLogs ? this.taskLogs.find(taskId, 100) : [];
   }
 
-  getJobs = (job: string, state: string, options: {
-    query: string,
-    property: string,
-    isObjectId: boolean,
-    limit: number,
-    skip: number
-  }): Promise<MongoDocument[]> => {
-    const preMatch: MongoDocument = {}; // Use MongoDocument type
-    if (job) {
-      preMatch.name = job;
-    }
-
-    if (options.query && options.property) {
-      if (options.isObjectId) {
-        try { // Add validation for ObjectId
-          preMatch[options.property] = new (objectIdFor(this.agenda._collection))(options.query);
-        } catch {
-          console.warn(`Agendash: Invalid ObjectId format provided for query: ${options.query}`);
-          // Decide how to handle - return empty, throw, etc. Here we might let the query fail.
-          preMatch[options.property] = options.query; // Or maybe set to a value that won't match
-        }
-      } else if (/^\d+$/.test(options.query)) {
-        preMatch[options.property] = Number.parseInt(options.query, 10);
-      } else if (typeof options.query === 'string' && options.query.startsWith('/') && options.query.endsWith('/')) {
-        // Basic Regex check
-        try {
-          const regexPattern = options.query.slice(1, -1);
-          preMatch[options.property] = { $regex: regexPattern, $options: 'i' }; // Assume case-insensitive
-        } catch {
-          console.warn(`Agendash: Invalid Regex format provided for query: ${options.query}`);
-          preMatch[options.property] = options.query; // Fallback to exact match?
-        }
-      }
-      else {
-        // Default to case-insensitive substring search if not ObjectId, number, or explicit regex
-        preMatch[options.property] = { $regex: options.query.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&'), $options: 'i' }; // Escape regex chars
-      }
-    }
-
-    const postMatch = {};
-    if (state) {
-      // Ensure state is one of the calculated properties
-      const validStates = ['running', 'scheduled', 'queued', 'completed', 'failed', 'repeating'];
-      if (validStates.includes(state)) {
-        postMatch[state] = true;
-      } else {
-        console.warn(`Agendash: Invalid state filter provided: ${state}`);
-      }
-    }
-
+  /** Jobs matching the filters, one page of them, with their state flags. */
+  getJobs = async (options: JobListOptions): Promise<{ jobs: JobListItem[]; totalJobs: number; totalPages: number }> => {
+    const now = new Date();
     const collection = this.agenda._collection;
-    // Add error handling for aggregation if possible, though less common
-    return collection
-      .aggregate([
+
+    const preMatch: MongoDocument = {};
+    if (options.job) {
+      preMatch.name = nameMatch(options.job);
+    }
+    if (options.query && options.property) {
+      if (options.property.startsWith('$')) {
+        throw new AgendashError(`Invalid property: ${options.property}`);
+      }
+      const ObjectId = objectIdFor(collection);
+      preMatch[options.property] = propertyMatch(
+        options.query,
+        options.isObjectId ? (value) => new ObjectId(value) : undefined,
+      );
+    }
+
+    const postMatch: MongoDocument = {};
+    if (options.state) {
+      if (isJobState(options.state)) {
+        postMatch[options.state] = true;
+      } else {
+        console.warn(`Agendash: Invalid state filter provided: ${options.state}`);
+      }
+    }
+
+    const [result] = await collection
+      .aggregate<{ pages: Array<{ totalJobs: number }>; filtered: JobListItem[] }>([
         { $match: preMatch },
-        {
-          $sort: {
-            // Existing sort...
-            nextRunAt: -1, // Prioritize nextRunAt for more intuitive default sort
-            lastRunAt: -1,
-            lastFinishedAt: -1,
-          },
-        },
+        { $sort: sortStage(options.sortBy, options.sortDir) },
         {
           $project: {
-            // Existing projection...
             job: '$$ROOT',
             _id: '$$ROOT._id',
-            // Consider adding computed 'status' field here based on others for simpler client-side logic
-            running: {
-              $and: ['$lastRunAt', { $gt: ['$lastRunAt', '$lastFinishedAt'] }],
-            },
-            scheduled: {
-              $and: ['$nextRunAt', { $gte: ['$nextRunAt', new Date()] }],
-            },
-            queued: { // This logic might need refinement depending on exact definition
-              $and: [
-                '$nextRunAt',
-                { $lte: ['$nextRunAt', new Date()] }, // Should be less than or equal to now
-                // Ensure it hasn't finished after the next run time was set (relevant for retries?)
-                { $or: [ { $eq: ['$lastFinishedAt', null] }, { $lte: ['$lastFinishedAt', '$nextRunAt'] } ] }
-              ],
-            },
-            completed: { // Ensure lastFinishedAt is the latest timestamp
-              $and: [
-                '$lastFinishedAt',
-                { $gte: ['$lastFinishedAt', '$lastRunAt'] }, // Finished after last run started
-                { $or: [ { $eq: ['$failedAt', null] }, { $lt: ['$failedAt', '$lastFinishedAt'] } ] } // Not failed or failed before last finish
-              ],
-            },
-            failed: { // Ensure failedAt is the latest timestamp
-              $and: [
-                '$failedAt',
-                { $gte: ['$failedAt', '$lastRunAt'] }, // Failed after last run started
-                // Optional: Check if lastFinishedAt is also set and matches failedAt
-                // { $eq: ['$lastFinishedAt', '$failedAt'] } // Agenda might set both on final failure
-              ],
-            },
-            repeating: {
-              $and: ['$repeatInterval', { $ne: ['$repeatInterval', null] }],
-            },
+            ...jobStateFields(now),
           },
         },
         { $match: postMatch },
         {
           $facet: {
-            // Existing facet...
-            pages: [
-              { $count: 'totalMatchs' },
-              {
-                $project: {
-                  totalPages: {
-                    $ceil: { $divide: ['$totalMatchs', options.limit] },
-                  },
-                },
-              },
-            ],
+            pages: [{ $count: 'totalJobs' }],
             filtered: [{ $skip: options.skip }, { $limit: options.limit }],
           },
         },
       ])
       .toArray();
+
+    const totalJobs = result?.pages?.[0]?.totalJobs ?? 0;
+    return {
+      jobs: result?.filtered ?? [],
+      totalJobs,
+      totalPages: Math.ceil(totalJobs / options.limit),
+    };
   };
 
-  getOverview = async (): Promise<MongoDocument[]> => {
-    const collection = this.agenda._collection;
-    const results = await collection
-      .aggregate([
-        // Project necessary fields and calculate states *before* grouping
-        {
-          $project: {
-            _id: 1, // Keep _id if needed later, otherwise remove
-            name: 1,
-            // Calculate states based on timestamps
-            running: {
-              $and: ['$lastRunAt', { $gt: ['$lastRunAt', '$lastFinishedAt'] }],
-            },
-            scheduled: {
-              $and: ['$nextRunAt', { $gte: ['$nextRunAt', new Date()] }],
-            },
-            queued: {
-              $and: [
-                '$nextRunAt',
-                { $lte: ['$nextRunAt', new Date()] },
-                { $or: [ { $eq: ['$lastFinishedAt', null] }, { $lte: ['$lastFinishedAt', '$nextRunAt'] } ] }
-              ],
-            },
-            completed: {
-              $and: [
-                '$lastFinishedAt',
-                { $gte: ['$lastFinishedAt', '$lastRunAt'] },
-                { $or: [ { $eq: ['$failedAt', null] }, { $lt: ['$failedAt', '$lastFinishedAt'] } ] }
-              ],
-            },
-            failed: {
-              $and: [
-                '$failedAt',
-                { $gte: ['$failedAt', '$lastRunAt'] },
-              ],
-            },
-            repeating: {
-              $and: ['$repeatInterval', { $ne: ['$repeatInterval', null] }],
-            },
-          }
-        },
-        // Now group by name and sum the calculated boolean states (converted to 1 or 0)
+  /** Number of jobs in each state, per job name, preceded by the totals across all names. */
+  getOverview = async (): Promise<OverviewItem[]> => {
+    const states = jobStateFields(new Date());
+    const results = await this.agenda._collection
+      .aggregate<OverviewItem>([
+        { $project: { name: 1, ...states } },
         {
           $group: {
-            _id: '$name', // Group by job name
-            displayName: { $first: '$name' }, // Get the name
-            // --- REMOVED meta field ---
-            // meta: { /* ... */ }, // <--- REMOVE THIS LINE
-            total: { $sum: 1 }, // Count total jobs per group
-            // Sum the states (true becomes 1, false becomes 0)
-            running: { $sum: { $cond: [ '$running', 1, 0 ] } },
-            scheduled: { $sum: { $cond: [ '$scheduled', 1, 0 ] } },
-            queued: { $sum: { $cond: [ '$queued', 1, 0 ] } },
-            completed: { $sum: { $cond: [ '$completed', 1, 0 ] } },
-            failed: { $sum: { $cond: [ '$failed', 1, 0 ] } },
-            repeating: { $sum: { $cond: [ '$repeating', 1, 0 ] } },
+            _id: '$name',
+            displayName: { $first: '$name' },
+            total: { $sum: 1 },
+            ...Object.fromEntries(
+              JOB_STATES.map((state) => [state, { $sum: { $cond: [`$${state}`, 1, 0] } }]),
+            ),
           },
         },
-        {
-          $sort: { // Optional: Sort the grouped results by name
-            displayName: 1
-          }
-        }
+        { $sort: { displayName: 1 } },
       ])
       .toArray();
 
-    // Calculate totals across all job types
-    const states = {
-      running: 0,
-      scheduled: 0,
-      queued: 0,
-      completed: 0,
-      failed: 0,
-      repeating: 0,
-      total: 0,
-    };
-    const totals = { displayName: 'All Jobs', ...states };
-
-    // Corrected loop syntax
-    for (const job of results) {
-      totals.running += job.running || 0;
-      totals.scheduled += job.scheduled || 0;
-      totals.queued += job.queued || 0;
-      totals.completed += job.completed || 0;
-      totals.failed += job.failed || 0;
-      // Note: Repeating jobs are often also in another state (scheduled, completed, etc.)
-      // totals.repeating might double-count if not careful.
-      // Let's assume 'repeating' count from group is correct for jobs *defined* as repeating.
-      totals.repeating += job.repeating || 0;
-      totals.total += job.total || 0;
+    const totals: OverviewItem = { displayName: 'All Jobs', total: 0 };
+    for (const state of JOB_STATES) {
+      totals[state] = 0;
     }
-    results.unshift(totals); // Add 'All Jobs' summary to the beginning
-    return results;
+    for (const item of results) {
+      totals.total += item.total || 0;
+      for (const state of JOB_STATES) {
+        totals[state] = (totals[state] ?? 0) + (item[state] || 0);
+      }
+    }
+    return [totals, ...results];
   };
 
   api = async (
     job: string,
-    state,
-    { query: q, property, isObjectId, skip, limit },
+    state: string,
+    { query, property, isObjectId, skip, limit, sortBy, sortDir }: ApiQuery,
   ) => {
-    limit = Number.parseInt(limit, 10) || 200;
-    skip = Number.parseInt(skip, 10) || 0;
+    const options: JobListOptions = {
+      job,
+      state,
+      query,
+      property,
+      isObjectId: Boolean(isObjectId) && isObjectId !== 'false',
+      limit: Number.parseInt(limit ?? '', 10) || 200,
+      skip: Number.parseInt(skip ?? '', 10) || 0,
+      sortBy,
+      sortDir: sortDir === 'asc' ? 'asc' : 'desc',
+    };
 
-    // Add try-catch for robustness
     try {
-      const [overview, jobsResult] = await Promise.all([
+      const [overview, { jobs, totalJobs, totalPages }] = await Promise.all([
         this.getOverview(),
-        this.getJobs(job, state, { query: q, property, isObjectId, skip, limit }),
+        this.getJobs(options),
       ]);
-
-      // Defensive check for jobsResult structure
-      const jobs = jobsResult?.[0]?.filtered ?? [];
-      const totalPages = jobsResult?.[0]?.pages?.[0]?.totalPages ?? 0;
 
       return {
         overview,
         jobs,
+        totalJobs,
         totalPages,
-        // title: 'Agendash', // Title seems static, maybe remove?
         currentRequest: {
-          // title: 'Agendash',
           job: job || 'All Jobs',
           state,
         },
       };
     } catch (error) {
-      console.error("Agendash API Error:", error);
-      // Return a structured error response or re-throw
-      throw error; // Or return { error: 'Failed to fetch data' }
+      if (!(error instanceof AgendashError)) {
+        console.error('Agendash API Error:', error);
+      }
+      throw error;
     }
   };
 
-  requeueJobs = async (jobIds) => {
-    const collection = this.agenda._collection;
-    if (!Array.isArray(jobIds) || jobIds.length === 0) {
-      throw new AgendashError('No job IDs provided for requeue');
+  /** A single job with its state flags, as in the job list. */
+  getJob = async (jobId: string): Promise<JobListItem> => {
+    const [_id] = this.toObjectIds([jobId]);
+    const [job] = await this.agenda._collection
+      .aggregate<JobListItem>([
+        { $match: { _id } },
+        { $project: { job: '$$ROOT', _id: '$$ROOT._id', ...jobStateFields(new Date()) } },
+      ])
+      .toArray();
+    if (!job) {
+      throw new AgendashError('Job not found', 404);
     }
-    const ObjectId = objectIdFor(collection);
-    const objectIds = jobIds.map((jobId) => new ObjectId(jobId)); // Convert upfront
+    return job;
+  };
+
+  /** Creates a new job with the name and data of each job, to run now. */
+  requeueJobs = async (jobIds: unknown) => {
+    const collection = this.agenda._collection;
+    const objectIds = this.toObjectIds(jobIds);
 
     const jobs = await collection
       .find({ _id: { $in: objectIds } })
       .toArray();
 
+    if (jobs.length === 0) {
+      throw new AgendashError('Jobs not found for requeue', 404);
+    }
     if (jobs.length !== objectIds.length) {
-      // Handle case where some jobs weren't found? Log a warning?
       console.warn(`Agendash: Requeue requested for ${objectIds.length} jobs, but only found ${jobs.length}.`);
-      if (jobs.length === 0) {
-        throw new AgendashError('Jobs not found for requeue');
+    }
+
+    await Promise.all(jobs.map((job) => this.agenda.create(job.name, job.data).save()));
+
+    return `${jobs.length} Job(s) requeued successfully`;
+  };
+
+  deleteJobs = (jobIds: unknown) => {
+    return this.agenda.cancel({ _id: { $in: this.toObjectIds(jobIds) } });
+  };
+
+  /**
+   * Runs the jobs at the next Agenda scan, keeping their schedule and repeat settings.
+   * Running and disabled jobs are skipped.
+   */
+  runJobsNow = (jobIds: unknown): Promise<JobUpdateResult> => {
+    return this.updateJobs(jobIds, { disabled: { $ne: true } }, { $set: { nextRunAt: new Date() } });
+  };
+
+  /** Stops Agenda from running the jobs until they are enabled again. Running jobs are skipped. */
+  disableJobs = (jobIds: unknown): Promise<JobUpdateResult> => {
+    return this.updateJobs(jobIds, {}, { $set: { disabled: true } });
+  };
+
+  enableJobs = (jobIds: unknown): Promise<JobUpdateResult> => {
+    return this.updateJobs(jobIds, {}, { $set: { disabled: false } });
+  };
+
+  createJob = async <T extends JobAttributesData>(
+    jobName: string,
+    jobSchedule?: string,
+    jobRepeatEvery?: string,
+    jobData?: T,
+  ) => {
+    if (!jobName || typeof jobName !== 'string') {
+      throw new AgendashError('Job name is required');
+    }
+    if (!jobSchedule && !jobRepeatEvery) {
+      throw new AgendashError('Job must have a schedule or repeat interval');
+    }
+
+    const job = this.agenda.create(jobName, jobData || {});
+
+    if (jobRepeatEvery) {
+      // Without a schedule the first run is now, otherwise at the scheduled time.
+      job.repeatEvery(jobRepeatEvery);
+      if (!job.attrs.nextRunAt) {
+        throw new AgendashError(`Invalid repeat interval: ${jobRepeatEvery}`);
       }
     }
-
-    const requeuePromises = jobs.map(job => {
-      const newJob = this.agenda.create(job.name, job.data);
-      return newJob.save();
-    });
-
-    await Promise.all(requeuePromises); // Wait for all saves
-
-    return `${jobs.length} Job(s) requeued successfully`; // Return count
-  };
-
-  deleteJobs = (jobIds) => {
-    if (!Array.isArray(jobIds) || jobIds.length === 0) {
-      return Promise.resolve({ deletedCount: 0 }); // Return consistent promise format
-    }
-    const ObjectId = objectIdFor(this.agenda._collection);
-    return this.agenda.cancel({
-      _id: { $in: jobIds.map((jobId) => new ObjectId(jobId)) },
-    });
-  };
-
-  createJob = <T extends JobAttributesData>(jobName: string, jobSchedule: string, jobRepeatEvery: string, jobData: T) => {
-    // @TODO: Need to validate user input.
-    if (!jobName) {
-      return Promise.reject(new AgendashError('Job name is required'));
-    }
-
-    const job = this.agenda.create(jobName, jobData || {}); // Ensure jobData is at least an empty object
-
-    let scheduled = false;
     if (jobSchedule) {
       job.schedule(jobSchedule);
-      scheduled = true;
-    }
-    // If repeatAt is desired, it usually replaces schedule
-    // if (jobSchedule && jobRepeatEvery) {
-    //   job.repeatAt(jobSchedule); // This might not be what's intended - repeatAt sets the *first* run time for a repeating job
-    //   job.repeatEvery(jobRepeatEvery);
-    //   scheduled = true;
-    // }
-    if (jobRepeatEvery) {
-      // If jobSchedule is also provided, Agenda might use it for the first run time via repeatAt implicitly or explicitly
-      // If only jobRepeatEvery is provided, it runs immediately and then repeats.
-      job.repeatEvery(jobRepeatEvery, {
-        // Optionally add timezone or skipImmediate
-        // timezone: '...',
-        // skipImmediate: true
-      });
-      if (jobSchedule && !scheduled) { // If schedule was provided but not used for one-off, use it for first repeat time
-        job.attrs.nextRunAt = undefined; // Clear potential immediate run from repeatEvery
-        job.schedule(jobSchedule); // Schedule the first run
+      if (!job.attrs.nextRunAt || Number.isNaN(new Date(job.attrs.nextRunAt).getTime())) {
+        throw new AgendashError(`Invalid schedule: ${jobSchedule}`);
       }
-      scheduled = true;
-    }
-
-    if (!scheduled) {
-      return Promise.reject(new AgendashError('Job must have a schedule or repeat interval'));
     }
 
     return job.save();
   };
+
+  /**
+   * Applies `update` to the jobs that are not locked by a worker: Agenda saves the whole
+   * job document when a run ends, which would undo changes made while it runs.
+   */
+  private async updateJobs(jobIds: unknown, filter: MongoDocument, update: MongoDocument): Promise<JobUpdateResult> {
+    const collection = this.agenda._collection;
+    const _id = { $in: this.toObjectIds(jobIds) };
+    const [{ modifiedCount, matchedCount }, found] = await Promise.all([
+      collection.updateMany({ ...filter, _id, lockedAt: null }, update),
+      collection.countDocuments({ _id }),
+    ]);
+    if (found === 0) {
+      throw new AgendashError('Jobs not found', 404);
+    }
+    return { updated: matchedCount, changed: modifiedCount, skipped: found - matchedCount };
+  }
+
+  private toObjectIds(jobIds: unknown): ObjectId[] {
+    if (!Array.isArray(jobIds) || jobIds.length === 0) {
+      throw new AgendashError('No job IDs provided');
+    }
+    const ObjectIdClass = objectIdFor(this.agenda._collection);
+    return jobIds.map((jobId: unknown) => {
+      if (typeof jobId !== 'string' || !ObjectIdClass.isValid(jobId)) {
+        throw new AgendashError(`Invalid job ID: ${String(jobId)}`);
+      }
+      return new ObjectIdClass(jobId);
+    });
+  }
 
   /** Stops listening to Agenda events and closes the dedicated task-log connection, if any. */
   async close(): Promise<void> {
