@@ -70,7 +70,7 @@ function insertIndent(event: KeyboardEvent) {
   display: flex;
   align-items: flex-start;
   overflow: auto;
-  background: #fafafa;
+  background: var(--bs-tertiary-bg);
   font-size: 0.85rem;
   line-height: 1.5;
 }
@@ -89,8 +89,8 @@ function insertIndent(event: KeyboardEvent) {
   padding: 0 0.5rem;
   min-height: 100%;
   text-align: right;
-  color: #999;
-  background: #fafafa;
+  color: var(--bs-secondary-color);
+  background: var(--bs-tertiary-bg);
   user-select: none;
 }
 .json-editor-container {
@@ -115,7 +115,7 @@ function insertIndent(event: KeyboardEvent) {
   outline: none;
   color: transparent;
   -webkit-text-fill-color: transparent;
-  caret-color: #333;
+  caret-color: var(--bs-body-color);
   background: transparent;
 }
 .json-editor-highlight {
@@ -125,7 +125,7 @@ function insertIndent(event: KeyboardEvent) {
 }
 .json-editor-highlight .json-editor-code {
   padding: 0;
-  color: #000;
+  color: var(--bs-body-color);
   background: none;
   white-space: pre;
 }

@@ -1,160 +1,223 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
-import type { JobEntry } from '../api';
+import { api, ApiError, errorMessage, type JobEntry } from '../api';
+import { ACTIONS, type JobAction } from '../actions';
 import { useModal } from '../composables/useModal';
-import { formatDate, formatJSON, statusClass, statusText } from '../jobs';
+import { formatDate, formatJSON, fromNow, isDisabled, mainState, STATE_META, statusText, statusTone } from '../jobs';
+import AppIcon from './AppIcon.vue';
 import JsonEditor from './JsonEditor.vue';
+import StateBadge from './StateBadge.vue';
 import TaskLogs from './TaskLogs.vue';
 
-const props = defineProps<{ job: JobEntry | null }>();
+const props = defineProps<{
+  /** The job as listed, shown until its fresh copy arrives. */
+  listedJob: JobEntry | null;
+  /** Changes when the dashboard refreshes. */
+  refreshKey: number | null;
+  /** An action on this job is in flight. */
+  busy: boolean;
+}>();
 
-// Bootstrap 5 does not stack modals, so the logs replace the details
-// while they are open and the details come back when the logs close.
-let showLogsWhenHidden = false;
-let showDetailsWhenHidden = false;
-const logsOpen = ref(false);
+const emit = defineEmits<{
+  action: [action: JobAction, job: JobEntry];
+  closed: [];
+}>();
 
-const {
-  element: detailsElement,
-  show: showDetails,
-  hide: hideDetails,
-} = useModal({
+const current = ref<JobEntry | null>(null);
+const isOpen = ref(false);
+const tab = ref<'overview' | 'logs'>('overview');
+const pendingAction = ref<JobAction | null>(null);
+const missing = ref(false);
+
+const { element, show, hide } = useModal({
   onHidden: () => {
-    if (!showLogsWhenHidden) return;
-    showLogsWhenHidden = false;
-    logsOpen.value = true;
-    showLogs();
+    isOpen.value = false;
+    pendingAction.value = null;
+    emit('closed');
   },
 });
 
-const { element: logsElement, show: showLogs } = useModal({
-  onHidden: () => {
-    logsOpen.value = false;
-    if (!showDetailsWhenHidden) return;
-    showDetailsWhenHidden = false;
-    showDetails();
-  },
+async function reload() {
+  const id = current.value?.job._id;
+  if (!id) return;
+  try {
+    current.value = await api.getJob(id);
+    missing.value = false;
+  } catch (error) {
+    // Deleted meanwhile: keep showing the last known copy
+    if (error instanceof ApiError && error.status === 404) missing.value = true;
+    else console.error('Error loading job:', error);
+  }
+}
+
+function open(tabName: 'overview' | 'logs' = 'overview') {
+  current.value = props.listedJob;
+  missing.value = false;
+  tab.value = tabName;
+  pendingAction.value = null;
+  isOpen.value = true;
+  show();
+  void reload();
+}
+
+watch(() => props.refreshKey, () => {
+  if (isOpen.value) void reload();
 });
 
+const job = computed(() => current.value);
+const disabled = computed(() => isDisabled(job.value));
 const hasData = computed(() => {
-  const data = props.job?.job?.data;
+  const data = job.value?.job.data;
   return typeof data === 'object' && data !== null ? Object.keys(data).length > 0 : Boolean(data);
 });
-const jobDataJSON = computed(() => formatJSON(props.job?.job?.data));
+const dataJSON = computed(() => formatJSON(job.value?.job.data));
+const stateIcon = computed(() => {
+  const state = mainState(job.value);
+  return state ? STATE_META[state].icon : 'help';
+});
 
-function formatDetailDate(date: string | null | undefined) {
-  return formatDate(date, 'DD MMM YYYY, HH:mm:ss');
+const timeline = computed(() => {
+  const attrs = job.value?.job;
+  if (!attrs) return [];
+  return [
+    { label: 'Next run', value: attrs.nextRunAt },
+    { label: 'Last run', value: attrs.lastRunAt },
+    { label: 'Last finished', value: attrs.lastFinishedAt },
+    { label: 'Locked', value: attrs.lockedAt },
+  ];
+});
+
+const PRIORITIES: Record<number, string> = { [-20]: 'Lowest', [-10]: 'Low', 0: 'Normal', 10: 'High', 20: 'Highest' };
+const priorityLabel = computed(() => {
+  const priority = job.value?.job.priority ?? 0;
+  return PRIORITIES[priority] ? `${PRIORITIES[priority]} (${priority})` : String(priority);
+});
+
+function request(action: JobAction) {
+  if (!job.value) return;
+  if (ACTIONS[action].confirm) {
+    pendingAction.value = action;
+  } else {
+    emit('action', action, job.value);
+  }
 }
 
-function openLogs() {
-  showLogsWhenHidden = true;
-  showDetailsWhenHidden = true;
-  hideDetails();
+function confirmPending() {
+  if (job.value && pendingAction.value) {
+    emit('action', pendingAction.value, job.value);
+    pendingAction.value = null;
+  }
 }
 
-defineExpose({ open: showDetails });
+async function copyId() {
+  if (!job.value) return;
+  try {
+    await navigator.clipboard.writeText(job.value.job._id);
+  } catch (error) {
+    console.warn('Clipboard unavailable:', errorMessage(error, 'unknown error'));
+  }
+}
+
+defineExpose({ open, hide, reload });
 </script>
 
 <template>
-  <div>
-    <!-- Job details -->
-    <div ref="detailsElement" class="modal fade" tabindex="-1" aria-labelledby="jobDataModalLabel" aria-hidden="true">
-      <div class="modal-dialog job-detail-dialog modal-xl">
-        <div class="modal-content shadow-lg">
-          <div class="modal-header bg-light border-bottom">
-            <h5 id="jobDataModalLabel" class="modal-title">
-              Job Details: <span class="fw-normal">{{ job && job.job ? job.job.name : 'Loading...' }}</span>
-            </h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body p-4">
-            <div v-if="job && job.job">
-              <div class="row mb-4">
-                <div class="col-md-6">
-                  <dl class="row dl-horizontal">
-                    <dt class="col-sm-4">Name:</dt>
-                    <dd class="col-sm-8">{{ job.job.name }}</dd>
-
-                    <dt class="col-sm-4">Status:</dt>
-                    <dd class="col-sm-8">
-                      <span :class="['badge', statusClass(job), 'rounded-pill', 'px-2']">{{ statusText(job) }}</span>
-                    </dd>
-
-                    <template v-if="job.job.priority">
-                      <dt class="col-sm-4">Priority:</dt>
-                      <dd class="col-sm-8">{{ job.job.priority }}</dd>
-                    </template>
-
-                    <dt class="col-sm-4">Next Run:</dt>
-                    <dd class="col-sm-8">{{ formatDetailDate(job.job.nextRunAt) }}</dd>
-                  </dl>
-                </div>
-                <div class="col-md-6">
-                  <dl class="row dl-horizontal">
-                    <dt class="col-sm-4">Last Run:</dt>
-                    <dd class="col-sm-8">{{ formatDetailDate(job.job.lastRunAt) }}</dd>
-
-                    <dt class="col-sm-4">Last Finished:</dt>
-                    <dd class="col-sm-8">{{ formatDetailDate(job.job.lastFinishedAt) }}</dd>
-
-                    <dt class="col-sm-4">Locked:</dt>
-                    <dd class="col-sm-8">{{ formatDetailDate(job.job.lockedAt) }}</dd>
-                  </dl>
-                </div>
-              </div>
-
-              <h6>Job Data (Metadata)</h6>
-              <JsonEditor v-if="hasData" class="json-editor json-editor-view border rounded mb-4" :model-value="jobDataJSON" readonly />
-              <p v-else class="text-muted"><i>No data associated with this job.</i></p>
-
-              <div v-if="job.failed" class="mt-3">
-                <h6>Failure Details</h6>
-                <div class="p-3 bg-danger-light text-danger border border-danger rounded">
-                  <dl class="row dl-horizontal mb-0">
-                    <dt class="col-sm-3">Fail Count:</dt>
-                    <dd class="col-sm-9">{{ job.job.failCount }}</dd>
-                    <dt class="col-sm-3">Failed At:</dt>
-                    <dd class="col-sm-9">{{ formatDetailDate(job.job.failedAt) }}</dd>
-                    <dt class="col-sm-3">Reason:</dt>
-                    <dd class="col-sm-9"><pre class="mb-0 failure-reason">{{ job.job.failReason }}</pre></dd>
-                  </dl>
-                </div>
-              </div>
-            </div>
-            <div v-else class="text-center text-muted py-5">
-              Loading job details...
+  <div ref="element" class="modal fade job-detail" tabindex="-1" aria-labelledby="jobDetailTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-md-down">
+      <div class="modal-content">
+        <div class="modal-header align-items-start">
+          <div class="min-w-0">
+            <h2 id="jobDetailTitle" class="h5 mb-1 text-break">{{ job?.job.name ?? 'Job' }}</h2>
+            <div v-if="job" class="d-flex flex-wrap align-items-center gap-2">
+              <StateBadge :tone="statusTone(job)" :label="statusText(job)" :icon="stateIcon" />
+              <StateBadge v-if="disabled" tone="secondary" label="Disabled" icon="pause_circle" />
+              <StateBadge v-if="job.job.repeatInterval" tone="secondary" :label="`Every ${job.job.repeatInterval}`" icon="repeat" />
+              <button type="button" class="btn btn-link btn-sm p-0 text-body-secondary text-decoration-none job-id" title="Copy the job ID" @click="copyId">
+                <code>{{ job.job._id }}</code> <AppIcon name="content_copy" />
+              </button>
             </div>
           </div>
-          <div class="modal-footer bg-light border-top">
-            <button type="button" class="btn btn-info me-auto" :disabled="!job?.job?._id" @click="openLogs">
-              <i class="material-icons md-18 align-middle me-1">history</i> Show Execution Logs
-            </button>
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+
+        <div class="modal-body">
+          <div v-if="missing" class="alert alert-warning py-2">This job no longer exists. It was deleted or replaced.</div>
+
+          <ul class="nav nav-underline mb-3" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button type="button" role="tab" :class="['nav-link', { active: tab === 'overview' }]" :aria-selected="tab === 'overview'" @click="tab = 'overview'">Overview</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button type="button" role="tab" :class="['nav-link', { active: tab === 'logs' }]" :aria-selected="tab === 'logs'" @click="tab = 'logs'">Execution log</button>
+            </li>
+          </ul>
+
+          <div v-if="job && tab === 'overview'" role="tabpanel">
+            <div v-if="job.failed || job.job.failReason" :class="['failure-panel', { past: !job.failed }]">
+              <div class="d-flex align-items-center gap-2 fw-medium mb-1">
+                <AppIcon name="error" />
+                {{ job.failed ? 'Last run failed' : 'Previous failure' }}
+                <span class="small fw-normal ms-auto">{{ job.job.failCount ?? 0 }} failure{{ job.job.failCount === 1 ? '' : 's' }} · {{ fromNow(job.job.failedAt) }}</span>
+              </div>
+              <pre class="failure-reason mb-0">{{ job.job.failReason }}</pre>
+            </div>
+
+            <div class="detail-grid">
+              <div v-for="item in timeline" :key="item.label" class="detail-item">
+                <div class="detail-label">{{ item.label }}</div>
+                <div class="detail-value">{{ fromNow(item.value) }}</div>
+                <div v-if="item.value" class="detail-sub">{{ formatDate(item.value) }}</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Priority</div>
+                <div class="detail-value">{{ priorityLabel }}</div>
+              </div>
+              <div class="detail-item">
+                <div class="detail-label">Repeats</div>
+                <div class="detail-value">{{ job.job.repeatInterval || 'No' }}</div>
+                <div v-if="job.job.repeatTimezone" class="detail-sub">{{ job.job.repeatTimezone }}</div>
+              </div>
+            </div>
+
+            <h3 class="h6 mt-4 mb-2">Data</h3>
+            <JsonEditor v-if="hasData" class="json-editor json-editor-view border rounded" :model-value="dataJSON" readonly />
+            <p v-else class="text-body-secondary fst-italic">No data.</p>
+          </div>
+
+          <div v-if="job && tab === 'logs' && isOpen" role="tabpanel">
+            <TaskLogs :job-id="job.job._id" :refresh-key="refreshKey" />
           </div>
         </div>
-      </div>
-    </div>
 
-    <!-- Execution logs -->
-    <div ref="logsElement" class="modal fade" tabindex="-1" aria-labelledby="logModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-lg modal-dialog-scrollable">
-        <div class="modal-content shadow-lg">
-          <div class="modal-header bg-light border-bottom">
-            <h5 id="logModalLabel" class="modal-title">
-              Execution Logs: <span class="fw-normal">{{ job && job.job ? job.job.name : '...' }}</span>
-            </h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body p-0">
-            <template v-if="logsOpen">
-              <TaskLogs v-if="job?.job?._id" :key="job.job._id" :job-id="job.job._id" />
-              <div v-else class="alert alert-warning m-3">Cannot load logs: Job ID is missing or job data not fully loaded.</div>
-            </template>
-          </div>
-          <div class="modal-footer bg-light border-top">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-          </div>
+        <div class="modal-footer">
+          <template v-if="pendingAction && job">
+            <span class="me-auto small">
+              <strong>{{ ACTIONS[pendingAction].label }}?</strong>
+              <span class="text-body-secondary"> {{ ACTIONS[pendingAction].description }}</span>
+            </span>
+            <button type="button" class="btn btn-outline-secondary" @click="pendingAction = null">Cancel</button>
+            <button type="button" :class="['btn', `btn-${ACTIONS[pendingAction].tone}`]" :disabled="busy" @click="confirmPending">
+              {{ ACTIONS[pendingAction].label }}
+            </button>
+          </template>
+          <template v-else>
+            <div class="d-flex flex-wrap gap-2 me-auto agendash-write">
+              <button type="button" class="btn btn-outline-success btn-sm" :disabled="!job || busy || disabled || job.running || missing" @click="request('run')">
+                <AppIcon :name="ACTIONS.run.icon" /> {{ ACTIONS.run.label }}
+              </button>
+              <button type="button" class="btn btn-outline-primary btn-sm" :disabled="!job || busy || missing" @click="request('requeue')">
+                <AppIcon :name="ACTIONS.requeue.icon" /> {{ ACTIONS.requeue.label }}
+              </button>
+              <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="!job || busy || missing" @click="request(disabled ? 'enable' : 'disable')">
+                <AppIcon :name="disabled ? ACTIONS.enable.icon : ACTIONS.disable.icon" /> {{ disabled ? ACTIONS.enable.label : ACTIONS.disable.label }}
+              </button>
+              <button type="button" class="btn btn-outline-danger btn-sm" :disabled="!job || busy || missing" @click="request('delete')">
+                <AppIcon :name="ACTIONS.delete.icon" /> {{ ACTIONS.delete.label }}
+              </button>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+          </template>
         </div>
       </div>
     </div>
