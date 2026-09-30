@@ -1,6 +1,6 @@
 {
   "name": "agendash3-rework",
-  "version": "3.0.6",
+  "version": "3.1.0",
   "description": "Dashboard for Agenda jobs with pagination, search, execution logs and a modern UI",
   "keywords": [
     "agenda",

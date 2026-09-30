@@ -1,3 +1,11 @@
+# [3.1.0](https://github.com/dani01Lost4ever/agendash-3/compare/3.0.6...3.1.0) (2026-09-30)
+
+
+### Features
+
+* autenticazione configurabile e modalità sola lettura ([#1](https://github.com/dani01Lost4ever/agendash-3/issues/1)) ([84eb700](https://github.com/dani01Lost4ever/agendash-3/commit/84eb7006b493a5c719864b007d713f0b459768b1))
+* redesigned dashboard with run now, enable/disable, sorting and a dark theme ([#3](https://github.com/dani01Lost4ever/agendash-3/issues/3)) ([a7252ec](https://github.com/dani01Lost4ever/agendash-3/commit/a7252eca3af8016ce218ed52a85a857bdced009d)), closes [#1](https://github.com/dani01Lost4ever/agendash-3/issues/1)
+
 ## [1.1.1](https://github.com/sealos/agendash/compare/v1.1.0...v1.1.1) (2025-03-31)
 
 
