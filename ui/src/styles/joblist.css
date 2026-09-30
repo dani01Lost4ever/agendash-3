@@ -1,4 +1,4 @@
-﻿.action-btn {
+.action-btn {
   cursor: pointer;
   vertical-align: middle;
   font-size: 20px; /* Slightly larger icons */
@@ -33,4 +33,8 @@ th.clickable:hover {
 .card .form-check-input {
   position: relative;
   z-index: 1;
+}
+.card-title-check {
+  min-width: 0;
+  flex-grow: 1;
 }

@@ -7,6 +7,7 @@ import Agendash from '../src'; // Import the function that returns { middleware,
 import express from 'express';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import { AgendashController } from "../src";
+import { seedDemoJobs } from './demo-jobs';
 
 async function start() {
   let mongoServer: MongoMemoryServer | null = null;
@@ -37,6 +38,12 @@ async function start() {
     // Task logs are stored in the database Agenda already uses
     const { middleware: agendashMiddleware, controller } = Agendash(agenda);
     agendashController = controller; // Assign controller for shutdown handler
+
+    // AGENDASH_DEMO=1 fills the dashboard with sample jobs in every state
+    if (process.env.AGENDASH_DEMO === '1') {
+      await seedDemoJobs(agenda);
+      console.log('Demo jobs created.');
+    }
 
     const app = express();
 

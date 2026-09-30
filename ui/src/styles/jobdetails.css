@@ -1,4 +1,4 @@
-﻿.dl-horizontal dt {
+.dl-horizontal dt {
   font-weight: 600;
   text-align: left;
   margin-bottom: 0.5rem;
@@ -30,3 +30,6 @@
 /* Add light background styles if not defined globally */
 .bg-success-light { background-color: #eaf6ec; }
 .bg-info-light { background-color: #eaf7f9; }
+.json-editor-view {
+  max-height: 300px;
+}

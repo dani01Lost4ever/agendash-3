@@ -4,8 +4,9 @@ import express, { type RequestHandler } from 'express';
 import type { AgendashController } from '../controllers/agendash';
 import { contentSecurityPolicy } from './csp';
 
-// Resolves to <package root>/public both from src/http (tests, dev) and dist/http (published build).
-const PUBLIC_DIR = path.join(__dirname, '..', '..', 'public');
+// The dashboard bundle built by Vite (`npm run build:ui`). Resolves to <package root>/dist/public
+// both from src/http (tests, dev) and dist/http (published build).
+const PUBLIC_DIR = path.join(__dirname, '..', '..', 'dist', 'public');
 
 export interface MiddlewareOptions {
   /** Run before everything else, static UI files included (e.g. authentication). */

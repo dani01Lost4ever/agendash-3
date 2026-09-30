@@ -136,10 +136,11 @@ Agendash creates the indexes it needs for sorting the job list on Agenda's colle
 ```bash
 npm install
 npm run dev        # example server with an in-memory MongoDB on http://localhost:3000
-npm test           # tests against an in-memory MongoDB
+npm run dev:ui     # UI with hot reload on http://localhost:5173, API proxied to port 3000
+npm test           # builds the UI, then tests against an in-memory MongoDB
 npm run lint
-npm run typecheck
-npm run build      # compiles to dist/
+npm run typecheck  # server (tsc) and UI (vue-tsc)
+npm run build      # server to dist/, UI bundle to dist/public/
 ```
 
 Project layout:
@@ -152,6 +153,9 @@ src/
   controllers/          job queries and actions
   http/                 Express middleware, API routes, Content-Security-Policy
   task-logs.ts          execution log storage
+ui/                     dashboard (Vue 3, Vite, Bootstrap 5)
+  src/api.ts            HTTP client for the API
+  src/components/       sidebar, filters, job list and modals
 examples/standalone.ts  development server
 test/                   Mocha tests (mongodb-memory-server)
 ```

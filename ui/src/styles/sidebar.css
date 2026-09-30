@@ -1,4 +1,4 @@
-﻿.clickable-row {
+.clickable-row {
   cursor: pointer;
   transition: background-color 0.2s ease-in-out;
 }
@@ -23,4 +23,7 @@
 }
 .list-group-item:last-child {
   border-bottom: none;
+}
+.progress.sidebar-progress {
+  height: 8px;
 }

@@ -111,6 +111,18 @@ describe('HTTP API', () => {
     const response = await request.get('/dash/').expect(200);
 
     assert.match(response.text, /<div id="agendash-root">/);
-    assert.ok(response.headers['content-security-policy']);
+    const csp = String(response.headers['content-security-policy']);
+    assert.match(csp, /script-src 'self'(;|$)/);
+    assert.match(csp, /style-src 'self'(;|$)/);
+  });
+
+  it('serves the bundled assets referenced by the dashboard', async () => {
+    const page = await request.get('/dash/').expect(200);
+    const assets = [...page.text.matchAll(/(?:src|href)="\.\/(assets\/[^"]+)"/g)].map((match) => match[1]);
+    assert.ok(assets.length >= 2, 'expected the script and stylesheet bundles');
+
+    for (const asset of assets) {
+      await request.get(`/dash/${asset}`).expect(200);
+    }
   });
 });

@@ -1,10 +1,11 @@
 import js from '@eslint/js';
 import { defineConfig, globalIgnores } from 'eslint/config';
+import pluginVue from 'eslint-plugin-vue';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default defineConfig(
-  globalIgnores(['dist/', 'coverage/', 'public/']),
+  globalIgnores(['dist/', 'coverage/']),
   js.configs.recommended,
   tseslint.configs.recommendedTypeChecked,
   {
@@ -37,8 +38,27 @@ export default defineConfig(
       '@typescript-eslint/no-unsafe-return': 'off',
     },
   },
+  pluginVue.configs['flat/recommended'],
   {
-    files: ['**/*.{js,mjs,cjs}'],
+    files: ['ui/**/*.{ts,vue}'],
+    languageOptions: {
+      globals: globals.browser,
+      parserOptions: {
+        parser: tseslint.parser,
+        extraFileExtensions: ['.vue'],
+      },
+    },
+    rules: {
+      // Template layout is left to the author
+      'vue/max-attributes-per-line': 'off',
+      'vue/singleline-html-element-content-newline': 'off',
+      'vue/multiline-html-element-content-newline': 'off',
+      'vue/html-self-closing': 'off',
+    },
+  },
+  {
+    // vue-tsc type-checks the components, so their lint rules skip type information
+    files: ['**/*.{js,mjs,cjs,vue}'],
     extends: [tseslint.configs.disableTypeChecked],
   },
 );
