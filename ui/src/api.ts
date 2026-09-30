@@ -1,5 +1,7 @@
 /** HTTP client for the Agendash API. All requests go through `request()`. */
 
+import { applyCredentials, shouldRetry } from './auth';
+
 export type JobStateName = 'running' | 'scheduled' | 'queued' | 'completed' | 'failed' | 'repeating';
 
 export interface JobDocument {
@@ -68,14 +70,18 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
-  // Lets the server tell API calls from page navigations.
+  // Lets the server tell API calls from page navigations; also required for CSRF protection.
   headers.set('X-Requested-With', 'XMLHttpRequest');
   if (init.body !== undefined) {
     headers.set('Content-Type', 'application/json');
   }
+  const sentKey = applyCredentials(headers);
   const response = await fetch(path, { credentials: 'same-origin', ...init, headers });
   const isJson = response.headers.get('Content-Type')?.includes('application/json');
   const body: unknown = isJson ? await response.json() : await response.text();
+  if (response.status === 401 && (await shouldRetry(body, sentKey))) {
+    return request<T>(path, init);
+  }
   if (!response.ok) {
     throw new ApiError(response.status, body);
   }
@@ -88,6 +94,9 @@ function post<T>(path: string, body: unknown): Promise<T> {
 
 // Paths are relative so the dashboard works under any mount path of the host app.
 export const api = {
+  getConfig(): Promise<{ readOnly: boolean }> {
+    return request<{ readOnly: boolean }>('api/config');
+  },
   getJobs({ limit, job, skip, property, isObjectId, state, q }: JobsQuery): Promise<JobsResponse> {
     const params = new URLSearchParams({ limit: String(limit), job, skip: String(skip), property });
     if (isObjectId) {

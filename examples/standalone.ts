@@ -35,8 +35,13 @@ async function start() {
     console.log('Agenda connected and started.');
 
     console.log('Initializing Agendash...');
-    // Task logs are stored in the database Agenda already uses
-    const { middleware: agendashMiddleware, controller } = Agendash(agenda);
+    // Task logs are stored in the database Agenda already uses.
+    // AGENDASH_API_KEY turns on API-key authentication, AGENDASH_READ_ONLY=true the read-only mode.
+    const apiKey = process.env.AGENDASH_API_KEY;
+    const { middleware: agendashMiddleware, controller } = Agendash(agenda, {
+      auth: apiKey ? { type: 'apiKey', keys: apiKey } : undefined,
+      readOnly: process.env.AGENDASH_READ_ONLY === 'true',
+    });
     agendashController = controller; // Assign controller for shutdown handler
 
     // AGENDASH_DEMO=1 fills the dashboard with sample jobs in every state

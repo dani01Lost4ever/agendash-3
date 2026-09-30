@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 
 import { api, type JobEntry, type OverviewEntry } from './api';
+import { logout, session, setReadOnly } from './auth';
 import ConfirmDelete from './components/ConfirmDelete.vue';
 import ConfirmDeleteMulti from './components/ConfirmDeleteMulti.vue';
 import ConfirmRequeue from './components/ConfirmRequeue.vue';
 import ConfirmRequeueMulti from './components/ConfirmRequeueMulti.vue';
 import JobDetail from './components/JobDetail.vue';
 import JobList from './components/JobList.vue';
+import LoginDialog from './components/LoginDialog.vue';
 import NewJob from './components/NewJob.vue';
 import PopupMessage from './components/PopupMessage.vue';
 import SideBar from './components/SideBar.vue';
@@ -178,6 +180,18 @@ function popupmessage(kind: PopupKind) {
   }, 2000);
 }
 
+// Read-only mode can depend on who is signed in, so it is read again after every login.
+watch(
+  () => session.version,
+  () => {
+    api.getConfig().then(
+      (config) => setReadOnly(config.readOnly),
+      (error: unknown) => console.log(error),
+    );
+  },
+  { immediate: true },
+);
+
 void fetchData();
 </script>
 
@@ -207,6 +221,7 @@ void fetchData();
             </div>
           </div>
         </div>
+        <button v-if="session.signedIn" type="button" class="btn btn-sm btn-outline-light me-3" @click="logout()">Sign out</button>
       </div>
     </div>
     <div class="row pt-5">
@@ -258,5 +273,6 @@ void fetchData();
     <ConfirmRequeueMulti ref="confirmRequeueMultiModal" :jobs="selectedJobIds" @popup-message="popupmessage('multirequeue')" @refresh-data="refreshData" />
     <PopupMessage :deletec="deletec" :requeuec="requeuec" :createc="createc" />
     <NewJob ref="newJobModal" @popup-message="popupmessage('create')" @refresh-data="fetchData()" />
+    <LoginDialog />
   </div>
 </template>

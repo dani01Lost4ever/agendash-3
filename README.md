@@ -181,6 +181,7 @@ Agendash creates the indexes it needs for sorting the job list on Agenda's colle
 ```bash
 npm install
 npm run dev        # example server with an in-memory MongoDB on http://localhost:3000
+                   # AGENDASH_API_KEY=... turns on the API-key login, AGENDASH_READ_ONLY=true the read-only mode
 npm run dev:ui     # UI with hot reload on http://localhost:5173, API proxied to port 3000
 npm test           # builds the UI, then tests against an in-memory MongoDB
 npm run lint

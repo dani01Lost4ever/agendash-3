@@ -117,6 +117,19 @@ These go next to `type` (single strategy) or next to `strategies`.
 A rejected API request gets a `401` with a JSON body that tells the dashboard UI how to authenticate (strategy
 names, the API key header, the login URL); it never contains secrets.
 
+## In the dashboard UI
+
+The dashboard's HTTP client (`ui/src/api.ts`, with `ui/src/auth.ts`) works with every strategy:
+
+- it sends `X-Requested-With: XMLHttpRequest` with every API request;
+- when the API answers 401 with a `loginUrl`, it sends the browser there;
+- with `apiKey`, it shows a login screen, remembers the key for the browser tab (sessionStorage) and
+  retries the request; a refused key shows an error on the same screen, and a **Sign out** button in
+  the top bar forgets the key;
+- a key in the page URL (`/dash/?apiKey=...`) is used once and removed from the address bar, which is
+  handy for links from an internal tool;
+- with `basic`, the browser shows its own prompt.
+
 ## Read-only mode
 
 ```js
@@ -124,8 +137,10 @@ readOnly: true                               // nobody can create, requeue or de
 readOnly: (req) => !req.user?.isAdmin        // decided per request, after authentication
 ```
 
-Refused requests get a `403`. `GET api/config` returns `{ "readOnly": true | false }` for the current user, so
-the UI can hide the actions that would fail.
+Refused requests get a `403`. `GET api/config` returns `{ "readOnly": true | false }` for the current user.
+When it is `true`, the UI sets `data-agendash-readonly` on `<html>` and hides every element with the
+`agendash-write` class (new job, requeue, delete); UI code can also read the `readOnly` ref exported by
+`ui/src/auth.ts`. Give that class to any new control that changes jobs.
 
 ## Using the middleware on its own
 
