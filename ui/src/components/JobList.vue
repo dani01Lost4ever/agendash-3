@@ -111,10 +111,10 @@ function toggleList(job: JobEntry) {
     <!-- Multi Action Bar -->
     <div class="d-flex justify-content-end align-items-center mb-3 p-2 bg-light border rounded shadow-sm">
       <span class="me-3 text-muted">{{ multijobs.length }} job(s) selected</span>
-      <button :disabled="!multijobs.length" class="btn btn-sm btn-primary me-2" title="Requeue selected jobs" @click="sendQueued">
+      <button :disabled="!multijobs.length" class="btn btn-sm btn-primary me-2 agendash-write" title="Requeue selected jobs" @click="sendQueued">
         <i class="material-icons md-18 align-middle me-1">update</i> Requeue Selected
       </button>
-      <button :disabled="!multijobs.length" class="btn btn-sm btn-danger" title="Delete selected jobs" @click="sendDelete">
+      <button :disabled="!multijobs.length" class="btn btn-sm btn-danger agendash-write" title="Delete selected jobs" @click="sendDelete">
         <i class="material-icons md-18 align-middle me-1">delete_sweep</i> Delete Selected
       </button>
     </div>
@@ -153,9 +153,9 @@ function toggleList(job: JobEntry) {
           <td class="job-nextRunAt py-2 align-middle" :title="formatTitle(job.job.nextRunAt)" @click="toggleList(job)"> {{ fromNow(job.job.nextRunAt) }} </td>
           <td class="job-finishedAt py-2 align-middle" :title="formatTitle(job.job.lastFinishedAt)" @click="toggleList(job)"> {{ fromNow(job.job.lastFinishedAt) }} </td>
           <td class="job-actions text-center py-2 align-middle">
-            <i class="material-icons md-dark md-custom action-btn mx-1 text-primary" title="Requeue Job" @click.stop="emit('confirm-requeue', job)">update</i>
+            <i class="material-icons md-dark md-custom action-btn mx-1 text-primary agendash-write" title="Requeue Job" @click.stop="emit('confirm-requeue', job)">update</i>
             <i class="material-icons md-dark md-custom action-btn mx-1 text-info" title="View Details & Logs" @click.stop="emit('show-job-detail', job)">visibility</i>
-            <i class="material-icons md-dark md-custom action-btn mx-1 text-danger" title="Delete Job" @click.stop="emit('confirm-delete', job)">delete_forever</i>
+            <i class="material-icons md-dark md-custom action-btn mx-1 text-danger agendash-write" title="Delete Job" @click.stop="emit('confirm-delete', job)">delete_forever</i>
           </td>
         </tr>
         <tr v-if="!jobs || jobs.length === 0">
@@ -181,9 +181,9 @@ function toggleList(job: JobEntry) {
                 </label>
               </div>
               <div class="job-actions flex-shrink-0 ms-2">
-                <i class="material-icons md-dark md-custom action-btn mx-1 text-primary" title="Requeue" @click.stop="emit('confirm-requeue', job)">update</i>
+                <i class="material-icons md-dark md-custom action-btn mx-1 text-primary agendash-write" title="Requeue" @click.stop="emit('confirm-requeue', job)">update</i>
                 <i class="material-icons md-dark md-custom action-btn mx-1 text-info" title="Details & Logs" @click.stop="emit('show-job-detail', job)">visibility</i>
-                <i class="material-icons md-dark md-custom action-btn mx-1 text-danger" title="Delete" @click.stop="emit('confirm-delete', job)">delete_forever</i>
+                <i class="material-icons md-dark md-custom action-btn mx-1 text-danger agendash-write" title="Delete" @click.stop="emit('confirm-delete', job)">delete_forever</i>
               </div>
             </div>
             <div class="card-body py-2 px-3 clickable" @click="toggleList(job)">

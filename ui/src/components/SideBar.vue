@@ -65,7 +65,7 @@ function searchSpecificJob(job: string, type: string) {
   <div class="col sidebar pt-3 pb-3 border-end bg-light">
     <div class="row mb-3 px-2">
       <div class="col">
-        <button title="Add a new job" class="btn w-100 btn-success shadow-sm" @click="emit('new-job')">New Job</button>
+        <button title="Add a new job" class="btn w-100 btn-success shadow-sm agendash-write" @click="emit('new-job')">New Job</button>
       </div>
     </div>
     <div class="row p-0">
