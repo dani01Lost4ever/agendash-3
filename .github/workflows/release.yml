@@ -1,37 +1,84 @@
-name: Publish Release
-# Manual only for now: a push to master must not publish to npm until the release pipeline
-# (trusted publishing and the right version tags) is in place.
+name: Release
+
+# Publishes agendash3-rework to npm with semantic-release once CI passes on
+# master. The version comes from the Conventional Commits since the last
+# release tag: fix -> patch, feat -> minor, BREAKING CHANGE -> major.
+#
+# npm authenticates this workflow with trusted publishing (OIDC), so no npm
+# token is stored in the repository. On npmjs.com the package's trusted
+# publisher must be: user dani01Lost4ever, repository agendash-3, workflow
+# release.yml, environment npm, with "npm publish" ticked under Allowed
+# actions (publishers created after 2026-09-03 only allow `npm stage publish`
+# by default, and semantic-release runs `npm publish`). From the CLI:
+#   npm trust github agendash3-rework --repo dani01Lost4ever/agendash-3 \
+#     --file release.yml --env npm --allow-publish
+# If `npm publish` is refused anyway, the release tag has already been pushed:
+# delete that tag and revert its "chore(release)" commit before retrying,
+# otherwise the next release skips that version.
+#
+# Running it by hand (Actions > Release > Run workflow) is a dry run: it prints
+# the next version and its notes and checks that the job can push to GitHub
+# and get an npm token, without publishing anything. It cannot tell whether
+# the trusted publisher allows `npm publish`.
+
 on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [master]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+# Queue every run instead of keeping only the newest pending one: a stale or
+# skipped run must not replace the pending run for the tip of master.
+concurrency:
+  group: release
+  cancel-in-progress: false
+  queue: max
+
 jobs:
-  semantic-release:
-    name: Semantic release
+  release:
+    name: Release
+    # Only after a green CI run for a push to master (never for pull requests)
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
-
-    env:
-      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-      # The release does not run tests, so skip mongodb-memory-server's MongoDB download
-      MONGOMS_DISABLE_POSTINSTALL: '1'
-
+    environment: npm
+    permissions:
+      contents: write # push the release commit and tag, create the GitHub release
+      issues: write # comment on released issues
+      pull-requests: write # comment on released pull requests
+      id-token: write # npm trusted publishing and provenance
     steps:
-      - name: Git checkout
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+        with:
+          # Release exactly the commit CI tested; semantic-release skips the
+          # release if master has moved on since (the newer commit's run,
+          # queued behind this one, releases instead).
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
 
-      - name: Use Node.js with cache
-        uses: actions/setup-node@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
-          cache: 'npm'
+          cache: npm
 
-      - name: Install modules
-        run: npm ci --no-audit
+      - run: npm ci --no-audit --no-fund
+        env:
+          # The release job never starts MongoDB
+          MONGOMS_DISABLE_POSTINSTALL: 1
 
       - name: Release
-        run: npm run release
+        run: npx semantic-release ${{ github.event_name == 'workflow_dispatch' && '--dry-run' || '' }}
         env:
-          GH_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}
-          GIT_AUTHOR_NAME: semantic-release-bot
-          GIT_AUTHOR_EMAIL: semantic-release@bot.com
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
+          GIT_AUTHOR_NAME: github-actions[bot]
+          GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
