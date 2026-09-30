@@ -2,13 +2,13 @@ import path from 'path';
 import express, { type RequestHandler } from 'express';
 
 import type { AgendashController } from '../controllers/agendash';
-import { contentSecurityPolicy } from './csp';
+import { contentSecurityPolicy, type ContentSecurityPolicyOptions } from './csp';
 
 // The dashboard bundle built by Vite (`npm run build:ui`). Resolves to <package root>/dist/public
 // both from src/http (tests, dev) and dist/http (published build).
 const PUBLIC_DIR = path.join(__dirname, '..', '..', 'dist', 'public');
 
-export interface MiddlewareOptions {
+export interface MiddlewareOptions extends ContentSecurityPolicyOptions {
   /** Run before everything else, static UI files included (e.g. authentication). */
   before?: RequestHandler[];
   /** Run before the API routes only. */
@@ -18,12 +18,12 @@ export interface MiddlewareOptions {
 /** The Express app a host mounts, e.g. `app.use('/dash', middleware)`. */
 export function createMiddleware(
   agendash: AgendashController,
-  { before = [], beforeApi = [] }: MiddlewareOptions = {},
+  { before = [], beforeApi = [], frameAncestors }: MiddlewareOptions = {},
 ): express.Express {
   const expressApp = express();
   expressApp.disable('x-powered-by');
 
-  expressApp.use(contentSecurityPolicy());
+  expressApp.use(contentSecurityPolicy({ frameAncestors }));
   expressApp.use(redirectToTrailingSlash());
   if (before.length > 0) {
     expressApp.use(before);

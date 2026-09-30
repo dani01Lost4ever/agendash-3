@@ -24,6 +24,13 @@ export interface AgendashOptions {
    * Enabled by default; pass `false` to turn it off.
    */
   taskLogs?: TaskLogOptions | false;
+  /**
+   * Origins allowed to show the dashboard in a frame (the Content-Security-Policy
+   * `frame-ancestors` directive). Defaults to `["'self'"]`: only pages of the host application's
+   * own origin can embed it. Example: `['https://app.example.com']`. Use `["'none'"]` to forbid
+   * framing entirely.
+   */
+  frameAncestors?: string[];
 }
 
 /**

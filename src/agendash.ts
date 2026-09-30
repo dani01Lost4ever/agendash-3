@@ -2,6 +2,7 @@ import type { Agenda } from '@sealos/agenda';
 import type { Express } from 'express';
 
 import { AgendashController } from './controllers/agendash';
+import { frameAncestorsSources } from './http/csp';
 import { createMiddleware } from './http/router';
 import { normalizeOptions, type AgendashOptions, type LegacyConnectOptions } from './options';
 
@@ -34,7 +35,9 @@ export function Agendash(
   legacyConnectOptions?: LegacyConnectOptions,
 ): AgendashInstance {
   const options = normalizeOptions(optionsOrConnectionString, legacyConnectOptions);
+  // Validated before the controller starts listening to Agenda
+  const frameAncestors = frameAncestorsSources(options.frameAncestors);
   const controller = new AgendashController(agenda, options);
-  const middleware = createMiddleware(controller);
+  const middleware = createMiddleware(controller, { frameAncestors });
   return { middleware, controller };
 }

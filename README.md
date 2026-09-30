@@ -79,6 +79,7 @@ Agendash(agenda, {
 | `taskLogs.collection` | `'tasklogs'` | Collection that stores the logs. |
 | `taskLogs.connectionString` | Agenda's database | Connection string for a dedicated connection. |
 | `taskLogs.connectionOptions` | `{}` | MongoDB driver options for that connection, plus `dbName`. |
+| `frameAncestors` | `["'self'"]` | Origins allowed to show the dashboard in an iframe. See [Embedding in an iframe](#embedding-in-an-iframe). |
 
 ### Upgrading from 3.x
 
@@ -113,6 +114,29 @@ app.use(
 ```
 
 If you use a CSRF protection middleware, exclude the Agendash routes from it.
+
+### Embedding in an iframe
+
+Agendash sends a strict Content-Security-Policy. By default its `frame-ancestors` directive only
+lets pages of the same origin show the dashboard in an iframe. To embed it in a frontend served
+from another origin, list that origin:
+
+```ts
+Agendash(agenda, { frameAncestors: ["'self'", 'https://app.example.com'] });
+```
+
+Each entry is an origin (`https://app.example.com`, `https://*.example.com`), a scheme
+(`https:`) or the keyword `'self'` or `'none'`. Only list origins you trust: any page allowed
+to frame the dashboard can trick a signed-in user into clicking its buttons.
+
+The policy replaces any `Content-Security-Policy` the host application set earlier on the same
+response (for example with helmet), and browsers ignore `X-Frame-Options` when
+`frame-ancestors` is present. A reverse proxy that adds its own framing headers still needs to
+allow the frontend's origin for this path.
+
+Sessions inside a cross-site iframe rely on third-party cookies (`SameSite=None; Secure`),
+which some browsers block. Serving the dashboard from the same site as the frontend, for
+example through a reverse proxy, avoids that limit.
 
 ## Task logs
 
