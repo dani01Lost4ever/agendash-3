@@ -11,6 +11,8 @@ jobs:
 
     env:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # The release does not run tests, so skip mongodb-memory-server's MongoDB download
+      MONGOMS_DISABLE_POSTINSTALL: '1'
 
     steps:
       - name: Git checkout

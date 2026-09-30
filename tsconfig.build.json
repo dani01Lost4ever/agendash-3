@@ -6,7 +6,9 @@
     "outDir": "dist",
     "noEmit": false,
     "declaration": true,
-    "sourceMap": true
+    "sourceMap": true,
+    // The sources are not published, so the maps carry them
+    "inlineSources": true
   },
   "include": ["src"]
 }

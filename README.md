@@ -38,7 +38,7 @@ npm install agendash3-rework
 ```ts
 import express from 'express';
 import { Agenda } from '@sealos/agenda';
-import Agendash from 'agendash3-rework';
+import { Agendash } from 'agendash3-rework';
 
 const agenda = new Agenda({ db: { address: 'mongodb://127.0.0.1/agendaDb' } });
 const app = express();
@@ -54,6 +54,10 @@ With CommonJS:
 ```js
 const { Agendash } = require('agendash3-rework');
 ```
+
+The named export works in every module system. The package is CommonJS, so in a native ES
+module (`"type": "module"`, `.mjs`) a default import gives the whole exports object, not the
+function.
 
 `Agendash()` returns `{ middleware, controller }`. `middleware` is an Express app you can mount on
 any path; `/dash` is redirected to `/dash/` so the UI's relative URLs resolve. Call
