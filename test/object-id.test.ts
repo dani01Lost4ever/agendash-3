@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { ObjectId } from 'mongodb';
+import { ObjectId, UUID } from 'mongodb';
 
 import { objectIdFor } from '../src/utils/object-id';
 import { startAgenda, stopAgenda, type TestContext } from './helpers';
@@ -28,5 +28,19 @@ describe('objectIdFor', () => {
 
   it('falls back to the ObjectId of the resolved mongodb package', () => {
     assert.equal(objectIdFor(undefined), ObjectId);
+  });
+
+  it('ignores a custom pkFactory that does not produce ObjectIds', () => {
+    const withPkFactory = (createPk: () => unknown) => ({ s: { pkFactory: { createPk } } });
+
+    assert.equal(objectIdFor(withPkFactory(() => new UUID())), ObjectId);
+    assert.equal(
+      objectIdFor(
+        withPkFactory(() => {
+          throw new Error('no ids today');
+        }),
+      ),
+      ObjectId,
+    );
   });
 });

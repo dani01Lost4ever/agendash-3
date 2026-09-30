@@ -102,9 +102,18 @@ describe('HTTP API', () => {
     assert.deepEqual(logs[0].data, { answer: 42 });
   });
 
+  it('answers errors with a message only', async () => {
+    const invalid = await request.post('/dash/api/jobs/create').send({ jobName: '' }).expect(400);
+    assert.deepEqual(invalid.body, { message: 'Job name is required' });
+
+    // A driver or BSON error is logged on the server, not sent to the client
+    const failed = await request.post('/dash/api/jobs/requeue').send({ jobIds: ['not-an-id'] }).expect(404);
+    assert.deepEqual(failed.body, { message: 'Could not requeue the jobs' });
+  });
+
   it('redirects the mount path to its trailing-slash form', async () => {
-    await request.get('/dash').expect(302).expect('Location', 'dash/');
-    await request.get('/dash?limit=5').expect(302).expect('Location', 'dash/?limit=5');
+    await request.get('/dash').expect(302).expect('Location', './dash/');
+    await request.get('/dash?limit=5').expect(302).expect('Location', './dash/?limit=5');
   });
 
   it('serves the dashboard with a Content-Security-Policy header', async () => {

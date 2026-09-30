@@ -34,14 +34,17 @@ export interface AgendashOptions {
 }
 
 /**
- * Options accepted by the legacy `Agendash(agenda, connectionString, options)` form.
- * Mongoose-only keys are accepted and ignored, driver options are passed through.
+ * Options accepted by the legacy `Agendash(agenda, connectionString, options)` form, i.e. the
+ * Mongoose `ConnectOptions` of 3.x. Mongoose-only keys are ignored, driver options are passed
+ * through. Typed loosely so a variable typed with Mongoose's own `ConnectOptions` still compiles.
  */
-export type LegacyConnectOptions = TaskLogConnectionOptions & {
+export interface LegacyConnectOptions {
+  dbName?: string;
   user?: string;
   pass?: string;
-  [key: string]: unknown;
-};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: string]: any;
+}
 
 export const DEFAULT_TASK_LOG_COLLECTION = 'tasklogs';
 
@@ -49,8 +52,10 @@ export const DEFAULT_TASK_LOG_COLLECTION = 'tasklogs';
 const MONGOOSE_ONLY_OPTIONS = [
   'autoCreate',
   'autoIndex',
+  'autoSearchIndex',
   'bufferCommands',
   'bufferTimeoutMS',
+  'config',
   'pass',
   'promiseLibrary',
   'sanitizeFilter',
@@ -66,7 +71,8 @@ function toDriverOptions(options: LegacyConnectOptions = {}): TaskLogConnectionO
   for (const key of MONGOOSE_ONLY_OPTIONS) {
     delete driverOptions[key];
   }
-  if (options.user !== undefined && driverOptions.auth === undefined) {
+  // Like Mongoose, empty credentials leave the ones in the connection string in place
+  if ((options.user || options.pass) && driverOptions.auth === undefined) {
     driverOptions.auth = { username: options.user, password: options.pass };
   }
   return driverOptions;

@@ -1,18 +1,24 @@
 import { Document as MongoDocument } from 'mongodb';
 import { Agenda, JobAttributesData } from '@sealos/agenda';
 
+import { AgendashError } from '../errors';
 import { TaskLogStore } from '../task-logs';
-import type { AgendashOptions } from '../options';
+import { normalizeOptions, type AgendashOptions, type LegacyConnectOptions } from '../options';
 import { objectIdFor } from '../utils/object-id';
 
 export class AgendashController {
   private readonly taskLogs?: TaskLogStore;
   private readonly detachListeners: Array<() => void> = [];
 
+  constructor(agenda: Agenda, options?: AgendashOptions);
+  /** Legacy form of 3.x: task logs on a dedicated connection to `connectionString`. */
+  constructor(agenda: Agenda, connectionString: string, connectOptions?: LegacyConnectOptions);
   constructor(
     private readonly agenda: Agenda,
-    options: AgendashOptions = {},
+    optionsOrConnectionString?: AgendashOptions | string,
+    legacyConnectOptions?: LegacyConnectOptions,
   ) {
+    const options = normalizeOptions(optionsOrConnectionString, legacyConnectOptions);
     // Indexes used by the job list sort. `_ready` also resolves when Agenda was ready
     // before Agendash was created, which a 'ready' listener would miss.
     agenda._ready
@@ -332,7 +338,7 @@ export class AgendashController {
   requeueJobs = async (jobIds) => {
     const collection = this.agenda._collection;
     if (!Array.isArray(jobIds) || jobIds.length === 0) {
-      throw new Error('No job IDs provided for requeue');
+      throw new AgendashError('No job IDs provided for requeue');
     }
     const ObjectId = objectIdFor(collection);
     const objectIds = jobIds.map((jobId) => new ObjectId(jobId)); // Convert upfront
@@ -345,7 +351,7 @@ export class AgendashController {
       // Handle case where some jobs weren't found? Log a warning?
       console.warn(`Agendash: Requeue requested for ${objectIds.length} jobs, but only found ${jobs.length}.`);
       if (jobs.length === 0) {
-        throw new Error('Jobs not found for requeue');
+        throw new AgendashError('Jobs not found for requeue');
       }
     }
 
@@ -372,7 +378,7 @@ export class AgendashController {
   createJob = <T extends JobAttributesData>(jobName: string, jobSchedule: string, jobRepeatEvery: string, jobData: T) => {
     // @TODO: Need to validate user input.
     if (!jobName) {
-      return Promise.reject(new Error('Job name is required'));
+      return Promise.reject(new AgendashError('Job name is required'));
     }
 
     const job = this.agenda.create(jobName, jobData || {}); // Ensure jobData is at least an empty object
@@ -404,7 +410,7 @@ export class AgendashController {
     }
 
     if (!scheduled) {
-      return Promise.reject(new Error('Job must have a schedule or repeat interval'));
+      return Promise.reject(new AgendashError('Job must have a schedule or repeat interval'));
     }
 
     return job.save();

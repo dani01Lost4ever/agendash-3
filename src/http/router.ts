@@ -2,6 +2,7 @@ import path from 'path';
 import express, { type RequestHandler } from 'express';
 
 import type { AgendashController } from '../controllers/agendash';
+import { AgendashError } from '../errors';
 import { contentSecurityPolicy, type ContentSecurityPolicyOptions } from './csp';
 
 // The dashboard bundle built by Vite (`npm run build:ui`). Resolves to <package root>/dist/public
@@ -45,13 +46,27 @@ function redirectToTrailingSlash(): RequestHandler {
     const isRoot = request.path === '/';
     if (isRoot && !pathname.endsWith('/') && (request.method === 'GET' || request.method === 'HEAD')) {
       // Relative target, so the redirect also works behind a proxy that adds a path prefix.
+      // The leading `./` keeps a segment such as `org:42` from being read as a URL scheme.
       const lastSegment = pathname.slice(pathname.lastIndexOf('/') + 1);
       const search = queryStart === -1 ? '' : request.originalUrl.slice(queryStart);
-      response.redirect(302, `${lastSegment}/${search}`);
+      response.redirect(302, `./${lastSegment}/${search}`);
       return;
     }
     next();
   };
+}
+
+/**
+ * Answers with a message only. Driver errors are logged but never sent: their fields describe
+ * the database servers (addresses, topology).
+ */
+function sendError(response: express.Response, status: number, error: unknown, fallback: string): void {
+  if (error instanceof AgendashError) {
+    response.status(status).json({ message: error.message });
+    return;
+  }
+  console.error(`Agendash: ${fallback}`, error);
+  response.status(status).json({ message: fallback });
 }
 
 export function createApiRouter(agendash: AgendashController): express.Router {
@@ -88,7 +103,7 @@ export function createApiRouter(agendash: AgendashController): express.Router {
       });
       response.json(apiResponse);
     } catch (error) {
-      response.status(400).json(error);
+      sendError(response, 400, error, 'Could not load the jobs');
     }
   });
 
@@ -97,7 +112,7 @@ export function createApiRouter(agendash: AgendashController): express.Router {
       const logs = await agendash.getTaskLogs(request.params.jobId);
       response.json(logs);
     } catch (error) {
-      response.status(400).json(error);
+      sendError(response, 400, error, 'Could not load the task logs');
     }
   });
 
@@ -106,7 +121,7 @@ export function createApiRouter(agendash: AgendashController): express.Router {
       const newJobs = await agendash.requeueJobs(request.body.jobIds);
       response.send(newJobs);
     } catch (error) {
-      response.status(404).json(error);
+      sendError(response, 404, error, 'Could not requeue the jobs');
     }
   });
 
@@ -120,7 +135,7 @@ export function createApiRouter(agendash: AgendashController): express.Router {
         response.json({ message: 'Jobs not deleted' });
       }
     } catch (error) {
-      response.status(404).json(error);
+      sendError(response, 404, error, 'Could not delete the jobs');
     }
   });
 
@@ -140,7 +155,7 @@ export function createApiRouter(agendash: AgendashController): express.Router {
       );
       response.json({ created: true });
     } catch (error) {
-      response.status(400).json(error);
+      sendError(response, 400, error, 'Could not create the job');
     }
   });
 

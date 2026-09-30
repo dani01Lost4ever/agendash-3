@@ -19,8 +19,14 @@ interface CollectionInternals {
  */
 export function objectIdFor(collection: unknown): ObjectIdConstructor {
   const pkFactory = (collection as CollectionInternals | undefined)?.s?.pkFactory;
-  const sample = pkFactory?.createPk?.() as object | undefined;
-  const constructor: unknown = sample?.constructor;
+  let sample: { _bsontype?: unknown; constructor?: unknown } | undefined;
+  try {
+    sample = pkFactory?.createPk?.() as typeof sample;
+  } catch {
+    // A custom pkFactory may throw; fall back to this package's ObjectId
+  }
+  // A custom pkFactory can produce other ids (e.g. UUID), while job ids are always ObjectIds
+  const constructor = sample?._bsontype === 'ObjectId' ? sample.constructor : undefined;
   return isObjectIdConstructor(constructor) ? constructor : ObjectId;
 }
 
