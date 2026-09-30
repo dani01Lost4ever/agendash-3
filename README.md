@@ -84,6 +84,8 @@ Agendash(agenda, {
 | `taskLogs.connectionString` | Agenda's database | Connection string for a dedicated connection. |
 | `taskLogs.connectionOptions` | `{}` | MongoDB driver options for that connection, plus `dbName`. |
 | `frameAncestors` | `["'self'"]` | Origins allowed to show the dashboard in an iframe. See [Embedding in an iframe](#embedding-in-an-iframe). |
+| `auth` | none | Authentication: `apiKey`, `cookie`, `basic` or `custom`, alone or combined. See [Protecting the dashboard](#protecting-the-dashboard). |
+| `readOnly` | `false` | `true`, or `(req) => boolean`, refuses every request that would change jobs. |
 
 ### Upgrading from 3.x
 
@@ -106,8 +108,22 @@ the database Agenda already uses.
 
 ### Protecting the dashboard
 
-Anyone who can reach the mount path can create, requeue and delete jobs. Put your own
-authentication in front of it:
+Without the `auth` option, anyone who can reach the mount path can create, requeue and delete
+jobs. Agendash can authenticate requests itself with an API key, a cookie validated by your
+application, HTTP Basic, or your own function or middleware, alone or combined, and can be made
+read-only:
+
+```ts
+Agendash(agenda, {
+  auth: { type: 'apiKey', keys: process.env.AGENDASH_API_KEY },
+  readOnly: (req) => req.get('x-api-key') !== process.env.AGENDASH_ADMIN_KEY,
+});
+```
+
+Invalid `auth` options throw, so a missing environment variable never leaves the dashboard open.
+See [docs/authentication.md](docs/authentication.md) for every strategy and option.
+
+You can also put your own middleware in front of it:
 
 ```ts
 app.use(
@@ -117,7 +133,8 @@ app.use(
 );
 ```
 
-If you use a CSRF protection middleware, exclude the Agendash routes from it.
+If you use a CSRF protection middleware, exclude the Agendash routes from it; with the `auth`
+option, Agendash requires the `X-Requested-With` header on state-changing requests itself.
 
 ### Embedding in an iframe
 
@@ -178,6 +195,7 @@ src/
   index.ts              public exports
   agendash.ts           Agendash() factory
   options.ts            options and legacy-signature handling
+  auth/                 authentication strategies and read-only mode
   controllers/          job queries and actions
   http/                 Express middleware, API routes, Content-Security-Policy
   task-logs.ts          execution log storage

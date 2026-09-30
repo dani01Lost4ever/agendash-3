@@ -1,5 +1,7 @@
 import type { MongoClientOptions } from 'mongodb';
 
+import type { AgendashAuthOptions, AgendashReadOnlyOption } from './auth/types';
+
 /** Driver options for a dedicated task-log connection. */
 export type TaskLogConnectionOptions = MongoClientOptions & {
   /** Database to use. Defaults to the database named in the connection string. */
@@ -31,6 +33,13 @@ export interface AgendashOptions {
    * framing entirely.
    */
   frameAncestors?: string[];
+  /**
+   * Authentication for the dashboard and its API: `none` (default), `apiKey`, `cookie`, `basic`
+   * or `custom`, alone or combined. See docs/authentication.md.
+   */
+  auth?: AgendashAuthOptions;
+  /** Refuse every request that would change jobs (create, requeue, delete). Default `false`. */
+  readOnly?: AgendashReadOnlyOption;
 }
 
 /**

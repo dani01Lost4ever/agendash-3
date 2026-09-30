@@ -11,3 +11,15 @@ export type {
   TaskLogOptions,
 } from './options';
 export type { TaskLog, TaskLogStatus } from './task-logs';
+export { createAuthMiddleware, createReadOnlyGuard } from './auth';
+export type {
+  AgendashAuthOptions,
+  AgendashAuthStrategy,
+  AgendashReadOnlyOption,
+  ApiKeyAuthStrategy,
+  AuthCommonOptions,
+  BasicAuthStrategy,
+  CookieAuthStrategy,
+  CustomAuthStrategy,
+  NoAuthStrategy,
+} from './auth';
