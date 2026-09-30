@@ -84,7 +84,7 @@ Agendash(agenda, {
 | `taskLogs.connectionString` | Agenda's database | Connection string for a dedicated connection. |
 | `taskLogs.connectionOptions` | `{}` | MongoDB driver options for that connection, plus `dbName`. |
 | `frameAncestors` | `["'self'"]` | Origins allowed to show the dashboard in an iframe. See [Embedding in an iframe](#embedding-in-an-iframe). |
-| `auth` | none | Authentication: `apiKey`, `cookie`, `basic` or `custom`, alone or combined. See [Protecting the dashboard](#protecting-the-dashboard). |
+| `auth` | none | Authentication: `apiKey`, `cookie`, `basic`, `ticket` or `custom`, alone or combined. See [Protecting the dashboard](#protecting-the-dashboard). |
 | `readOnly` | `false` | `true`, or `(req) => boolean`, refuses every request that would change jobs. |
 
 ### Upgrading from 3.x
@@ -110,8 +110,8 @@ the database Agenda already uses.
 
 Without the `auth` option, anyone who can reach the mount path can create, requeue and delete
 jobs. Agendash can authenticate requests itself with an API key, a cookie validated by your
-application, HTTP Basic, or your own function or middleware, alone or combined, and can be made
-read-only:
+application, HTTP Basic, a one-time ticket from your application, or your own function or
+middleware, alone or combined, and can be made read-only:
 
 ```ts
 Agendash(agenda, {
@@ -157,7 +157,9 @@ allow the frontend's origin for this path.
 
 Sessions inside a cross-site iframe rely on third-party cookies (`SameSite=None; Secure`),
 which some browsers block. Serving the dashboard from the same site as the frontend, for
-example through a reverse proxy, avoids that limit.
+example through a reverse proxy, avoids that limit. Otherwise the `ticket` auth strategy signs
+the iframe in with a one-time ticket from your application and a partitioned cookie; see
+[Embedding in an iframe](docs/authentication.md#embedding-in-an-iframe).
 
 ## Task logs
 

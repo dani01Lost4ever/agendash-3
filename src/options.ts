@@ -34,8 +34,8 @@ export interface AgendashOptions {
    */
   frameAncestors?: string[];
   /**
-   * Authentication for the dashboard and its API: `none` (default), `apiKey`, `cookie`, `basic`
-   * or `custom`, alone or combined. See docs/authentication.md.
+   * Authentication for the dashboard and its API: `none` (default), `apiKey`, `cookie`, `basic`,
+   * `ticket` or `custom`, alone or combined. See docs/authentication.md.
    */
   auth?: AgendashAuthOptions;
   /** Refuse every request that would change jobs (create, requeue, delete). Default `false`. */

@@ -8,9 +8,14 @@ const empty = ref(false);
 const input = ref<HTMLInputElement | null>(null);
 
 watch(
+  () => session.loginOpen || session.signedOut,
+  (open) => document.documentElement.classList.toggle('agendash-login-open', open),
+  { immediate: true },
+);
+
+watch(
   () => session.loginOpen,
   async (open) => {
-    document.documentElement.classList.toggle('agendash-login-open', open);
     if (open) {
       key.value = '';
       empty.value = false;
@@ -30,6 +35,10 @@ function submit() {
   }
   submitLogin(value);
 }
+
+function reload() {
+  window.location.reload();
+}
 </script>
 
 <template>
@@ -45,5 +54,14 @@ function submit() {
         <button type="submit" class="btn btn-primary w-100">Sign in</button>
       </div>
     </form>
+  </div>
+  <div v-else-if="session.signedOut" class="agendash-login" role="alertdialog" aria-modal="true" aria-labelledby="agendash-signed-out-title">
+    <div class="agendash-login-panel card shadow-lg">
+      <div class="card-body p-4">
+        <h1 id="agendash-signed-out-title" class="h4 mb-2">Session ended</h1>
+        <p class="text-secondary mb-3">You are no longer signed in to Agendash. Open the dashboard again from your application.</p>
+        <button type="button" class="btn btn-primary w-100" @click="reload">Reload</button>
+      </div>
+    </div>
   </div>
 </template>

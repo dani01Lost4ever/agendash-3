@@ -6,6 +6,7 @@ import type {
   BasicAuthStrategy,
   CookieAuthStrategy,
   CustomAuthStrategy,
+  TicketAuthStrategy,
   VerifyResult,
 } from './types';
 
@@ -17,7 +18,8 @@ export interface Authenticator {
   challenge?: string;
   /** Non-secret details the dashboard UI needs to authenticate (sent with 401 responses). */
   hint?: Record<string, unknown>;
-  authenticate(req: Request, res: Response): Promise<boolean>;
+  /** Resolves to a falsy value to reject, or to the principal (`true` when there is none). */
+  authenticate(req: Request, res: Response): Promise<unknown>;
 }
 
 export function configError(message: string): Error {
@@ -38,9 +40,10 @@ function matchesAny(value: string, candidates: Buffer[]): boolean {
   return found;
 }
 
-async function accepts(check: () => VerifyResult): Promise<boolean> {
+/** Runs a host verify function: its truthy result is the principal, a throw is a rejection. */
+export async function accepts(check: () => VerifyResult): Promise<unknown> {
   try {
-    return Boolean(await check());
+    return await check();
   } catch {
     return false;
   }
@@ -104,7 +107,7 @@ function apiKeyAuthenticator(strategy: ApiKeyAuthStrategy): Authenticator {
   };
 }
 
-function readCookieHeader(header: string | undefined, name: string): string | undefined {
+export function readCookieHeader(header: string | undefined, name: string): string | undefined {
   if (!header) return undefined;
   for (const part of header.split(';')) {
     const index = part.indexOf('=');
@@ -216,7 +219,7 @@ function customAuthenticator(strategy: CustomAuthStrategy): Authenticator {
 }
 
 /** Builds the check for one strategy. A custom `middleware` strategy is run by the guard itself, not here. */
-export function createAuthenticator(strategy: AgendashAuthStrategy): Authenticator {
+export function createAuthenticator(strategy: Exclude<AgendashAuthStrategy, TicketAuthStrategy>): Authenticator {
   switch (strategy?.type) {
     case 'apiKey':
       return apiKeyAuthenticator(strategy);

@@ -21,12 +21,17 @@ let credentials = readStoredCredentials();
 let keyFromUrl = takeKeyFromUrl();
 let pendingLogin: Promise<boolean> | null = null;
 
-/** Login state shown by LoginDialog.vue; `version` changes whenever the credentials do. */
+/**
+ * Login state shown by LoginDialog.vue; `version` changes whenever the credentials do.
+ * `signedOut` is set when the server refuses a request the dashboard cannot sign in for itself,
+ * e.g. an expired session of the host application.
+ */
 export const session = reactive({
   signedIn: credentials !== null,
   version: 0,
   loginOpen: false,
   rejected: false,
+  signedOut: false,
 });
 
 let submitKey: ((key: string) => void) | null = null;
@@ -65,14 +70,20 @@ function storeCredentials(value: Credentials | null): void {
   }
 }
 
-/** A key in the page URL (`?apiKey=...`) is used once, then removed from the address bar. */
+/**
+ * A key in the page URL (`#apiKey=...`) is used once, then removed from the address bar. It is
+ * read from the fragment, which browsers never send to the server or in the Referer header, so
+ * the key stays out of access logs and proxies.
+ */
 function takeKeyFromUrl(): string | null {
   const url = new URL(window.location.href);
-  const key = url.searchParams.get('apiKey');
+  const fragment = new URLSearchParams(url.hash.slice(1));
+  const key = fragment.get('apiKey');
   if (!key) {
     return null;
   }
-  url.searchParams.delete('apiKey');
+  fragment.delete('apiKey');
+  url.hash = fragment.toString();
   window.history.replaceState(window.history.state, '', url);
   return key;
 }
@@ -102,6 +113,7 @@ export function shouldRetry(body: unknown, sentKey: string | null): Promise<bool
   }
   const hint = auth?.apiKey;
   if (!hint) {
+    session.signedOut = auth !== undefined;
     return Promise.resolve(false);
   }
   if (credentials && credentials.key !== sentKey) {

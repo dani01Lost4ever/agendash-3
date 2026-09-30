@@ -62,11 +62,68 @@ export interface CustomAuthStrategy {
   middleware?: RequestHandler;
 }
 
+/**
+ * A one-time ticket exchanged for a session cookie, for a dashboard embedded in an iframe of the host
+ * application (an iframe cannot send an `Authorization` header). The host signs a short-lived ticket,
+ * e.g. a 60-second JWT, and points the iframe at `<mount path>/?ticket=<ticket>`. Agendash checks it
+ * with `verifyTicket`, sets a signed HttpOnly session cookie and redirects to the same URL without the
+ * ticket. A ticket is accepted once per process.
+ */
+export interface TicketAuthStrategy {
+  type: 'ticket';
+  /**
+   * Checks the ticket, e.g. `(ticket) => jwt.verify(ticket, secret, { audience: 'agendash' })`.
+   * A plain object it returns (such as the JWT payload) is kept in the session and available to
+   * `readOnly(req)` through `getAgendashAuth(req).principal`, so keep it small.
+   */
+  verifyTicket: (ticket: string, req: Request) => VerifyResult;
+  /** Query-string parameter carrying the ticket. Default `ticket`. */
+  queryParam?: string;
+  /** The session cookie set after a valid ticket. */
+  session: SessionCookieOptions;
+}
+
+export interface SessionCookieOptions {
+  /** Signs the cookie with HMAC-SHA256. At least 32 characters; keep it out of the source code. */
+  secret: string;
+  /** Default `agendash_session`. */
+  name?: string;
+  /** Session lifetime in seconds. Default 8 hours. */
+  maxAge?: number;
+  /**
+   * Default `'none'`, required when the host application that frames the dashboard is on another
+   * site. Use `'lax'` or `'strict'` when the dashboard is served from the same site.
+   */
+  sameSite?: 'strict' | 'lax' | 'none';
+  /** Default `true`; `sameSite: 'none'` requires it. */
+  secure?: boolean;
+  /**
+   * Partitioned cookie (CHIPS): keeps working in a cross-site iframe when the browser blocks
+   * third-party cookies. Default `true` when `sameSite` is `'none'`.
+   */
+  partitioned?: boolean;
+  /** Default: the path Agendash is mounted on. */
+  path?: string;
+  domain?: string;
+}
+
 export type AgendashAuthStrategy =
   | ApiKeyAuthStrategy
   | CookieAuthStrategy
   | BasicAuthStrategy
-  | CustomAuthStrategy;
+  | CustomAuthStrategy
+  | TicketAuthStrategy;
+
+/** Who was let in, as returned by `getAgendashAuth(req)`. */
+export interface AgendashAuthInfo {
+  /** The strategy that accepted the request. */
+  strategy: AgendashAuthStrategy['type'];
+  /**
+   * What its verify function returned (e.g. the JWT payload), or the plain object kept in a ticket
+   * session. `undefined` for `keys` and `users` lists and custom middleware.
+   */
+  principal?: unknown;
+}
 
 export interface AuthCommonOptions {
   /**
@@ -78,7 +135,7 @@ export interface AuthCommonOptions {
   loginUrl?: string | ((req: Request) => string);
   /**
    * Require the `X-Requested-With` header on state-changing requests authenticated through
-   * credentials the browser sends by itself (cookie, basic, custom), which blocks cross-site
+   * credentials the browser sends by itself (cookie, ticket, basic, custom), which blocks cross-site
    * request forgery. Default `true`. The dashboard UI always sends the header.
    */
   csrf?: boolean;

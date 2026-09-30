@@ -4,7 +4,15 @@ import type { Express } from 'express';
 import supertest from 'supertest';
 
 import Agendash, { type AgendashInstance } from '../src';
-import { AgendashAuthOptions, AgendashReadOnlyOption, createAuthMiddleware, createReadOnlyGuard } from '../src/auth';
+import { createHmac } from 'node:crypto';
+
+import {
+  AgendashAuthOptions,
+  AgendashReadOnlyOption,
+  createAuthMiddleware,
+  createReadOnlyGuard,
+  getAgendashAuth,
+} from '../src/auth';
 import { startAgenda, stopAgenda, type TestContext } from './helpers';
 
 /** A host app mounting a stand-in dashboard at /dash, guarded exactly like the real one. */
@@ -251,6 +259,126 @@ describe('auth', () => {
     });
   });
 
+  describe('ticket', () => {
+    const secret = 'a-session-secret-of-at-least-32-chars';
+    const options: AgendashAuthOptions = {
+      type: 'ticket',
+      verifyTicket: (ticket) => {
+        if (!ticket.startsWith('valid-')) throw new Error('jwt expired');
+        return { sub: ticket.slice('valid-'.length), role: ticket.endsWith('admin') ? 'admin' : 'viewer' };
+      },
+      session: { secret },
+    };
+    const readOnly = (req: express.Request) => (getAgendashAuth(req)?.principal as { role?: string } | undefined)?.role !== 'admin';
+
+    function sessionCookie(response: supertest.Response): string | undefined {
+      const cookies = response.headers['set-cookie'] as unknown as string[] | undefined;
+      return cookies?.find((cookie) => cookie.startsWith('agendash_session='));
+    }
+
+    it('rejects configurations that would weaken the session', () => {
+      const invalid: unknown[] = [
+        { type: 'ticket', session: { secret } },
+        { type: 'ticket', verifyTicket: () => true },
+        { type: 'ticket', verifyTicket: () => true, session: { secret: 'too-short' } },
+        { type: 'ticket', verifyTicket: () => true, session: { secret, secure: false } },
+        { type: 'ticket', verifyTicket: () => true, session: { secret, sameSite: 'relaxed' } },
+        { type: 'ticket', verifyTicket: () => true, session: { secret, maxAge: 0 } },
+      ];
+      for (const invalidOptions of invalid) {
+        assert.throws(() => createAuthMiddleware(invalidOptions as AgendashAuthOptions), /Agendash auth/, JSON.stringify(invalidOptions));
+      }
+    });
+
+    it('swaps a valid ticket for a session cookie and removes it from the URL', async () => {
+      const request = dashboard(options);
+      const response = await request.get('/dash/?jobType=failed&ticket=valid-ada').expect(302);
+      assert.equal(response.headers.location, './?jobType=failed');
+      assert.equal(response.headers['cache-control'], 'no-store');
+      const cookie = sessionCookie(response);
+      assert.ok(cookie, 'session cookie set');
+      for (const attribute of ['HttpOnly', 'Secure', 'SameSite=None', 'Partitioned', 'Path=/dash', 'Max-Age=28800']) {
+        assert.ok(cookie.includes(attribute), `${attribute} in ${cookie}`);
+      }
+
+      const session = cookie.split(';')[0];
+      await request.get('/dash/index.html').set('Cookie', session).expect(200);
+      await request.get('/dash/api').set('Cookie', session).expect(200);
+      await request.get('/dash/api').expect(401);
+    });
+
+    it('protects state-changing requests from CSRF like any cookie', async () => {
+      const request = dashboard(options);
+      const session = sessionCookie(await request.get('/dash/?ticket=valid-csrf'))!.split(';')[0];
+      await request.post('/dash/api/jobs/delete').set('Cookie', session).expect(403);
+      await request.post('/dash/api/jobs/delete').set('Cookie', session).set('X-Requested-With', 'XMLHttpRequest').expect(200);
+    });
+
+    it('accepts each ticket once and drops invalid ones from the URL without a session', async () => {
+      const request = dashboard(options);
+      assert.ok(sessionCookie(await request.get('/dash/?ticket=valid-once').expect(302)));
+      const replayed = await request.get('/dash/?ticket=valid-once').expect(302);
+      assert.equal(sessionCookie(replayed), undefined);
+      const invalid = await request.get('/dash/?ticket=forged').expect(302);
+      assert.equal(invalid.headers.location, './');
+      assert.equal(sessionCookie(invalid), undefined);
+    });
+
+    it('refuses tampered and expired sessions', async () => {
+      const request = dashboard(options);
+      const session = sessionCookie(await request.get('/dash/?ticket=valid-tamper'))!.split(';')[0];
+      const [body, signature] = session.slice('agendash_session='.length).split('.');
+      const promoted = Buffer.from(JSON.stringify({ exp: 4102444800, p: { role: 'admin' } })).toString('base64url');
+      await request.get('/dash/api').set('Cookie', `agendash_session=${promoted}.${signature}`).expect(401);
+      await request.get('/dash/api').set('Cookie', `agendash_session=${body}.${signature}x`).expect(401);
+
+      const expired = Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) - 1 })).toString('base64url');
+      const expiredSignature = createHmac('sha256', secret).update(expired).digest('base64url');
+      await request.get('/dash/api').set('Cookie', `agendash_session=${expired}.${expiredSignature}`).expect(401);
+    });
+
+    it('keeps what verifyTicket returned for readOnly(req)', async () => {
+      const request = dashboard(options, { readOnly });
+      const viewer = sessionCookie(await request.get('/dash/?ticket=valid-viewer'))!.split(';')[0];
+      const admin = sessionCookie(await request.get('/dash/?ticket=valid-admin'))!.split(';')[0];
+      const csrf = { 'X-Requested-With': 'XMLHttpRequest' };
+      await request.post('/dash/api/jobs/delete').set('Cookie', viewer).set(csrf).expect(403);
+      await request.post('/dash/api/jobs/delete').set('Cookie', admin).set(csrf).expect(200);
+    });
+
+    it('shows browsers a sign-in page, mentioning blocked cookies inside a frame', async () => {
+      const request = dashboard(options);
+      const page = await request.get('/dash/').set('Accept', 'text/html').expect(401).expect('Content-Type', /html/);
+      assert.match(page.text, /Sign-in required/);
+      assert.doesNotMatch(page.text, /block the cookie/);
+      const framed = await request.get('/dash/').set('Accept', 'text/html').set('Sec-Fetch-Dest', 'iframe').expect(401);
+      assert.match(framed.text, /block the cookie/);
+      const api = await request.get('/dash/api').expect(401);
+      assert.deepEqual(api.body.auth, { strategies: ['ticket'], loginUrl: null });
+    });
+
+    it('honours same-site cookie options', async () => {
+      const request = dashboard({ ...options, session: { secret, sameSite: 'lax', name: 'sid', path: '/', maxAge: 600 } });
+      const cookie = ((await request.get('/dash/?ticket=valid-lax')).headers['set-cookie'] as unknown as string[])[0];
+      assert.ok(cookie.startsWith('sid='));
+      assert.ok(cookie.includes('SameSite=Lax') && cookie.includes('Path=/') && cookie.includes('Max-Age=600'));
+      assert.ok(!cookie.includes('Partitioned'));
+    });
+  });
+
+  describe('auth info', () => {
+    it('tells host code which strategy let the request in and with what principal', async () => {
+      const seen: unknown[] = [];
+      const request = dashboard(
+        { strategies: [{ type: 'cookie', name: 'sid', verify: (value) => (value === 'abc' ? { user: 'ada' } : false) }, { type: 'apiKey', keys: 'k' }] },
+        { readOnly: (req) => { seen.push(getAgendashAuth(req)); return false; } },
+      );
+      await request.post('/dash/api/jobs/delete').set('Cookie', 'sid=abc').set('X-Requested-With', 'XMLHttpRequest').expect(200);
+      await request.post('/dash/api/jobs/delete').set('X-API-Key', 'k').expect(200);
+      assert.deepEqual(seen, [{ strategy: 'cookie', principal: { user: 'ada' } }, { strategy: 'apiKey', principal: undefined }]);
+    });
+  });
+
   describe('readOnly', () => {
     it('refuses every state-changing request', async () => {
       const request = dashboard(undefined, { readOnly: true });
@@ -290,6 +418,26 @@ describe('Agendash with auth and readOnly', () => {
   after(async () => {
     await agendash.controller.close();
     await stopAgenda(context);
+  });
+
+  it('opens a ticket session from the mount path without a trailing slash', async () => {
+    const ticketed = Agendash(context.agenda, {
+      taskLogs: false,
+      auth: { type: 'ticket', verifyTicket: (ticket) => ticket === 'one-time', session: { secret: 'a-session-secret-of-at-least-32-chars' } },
+    });
+    try {
+      const app = express();
+      app.use('/dash', ticketed.middleware);
+      const host = supertest(app);
+      await host.get('/dash?ticket=one-time').expect(302).expect('Location', './dash/?ticket=one-time');
+      const exchange = await host.get('/dash/?ticket=one-time').expect(302).expect('Location', './');
+      const session = (exchange.headers['set-cookie'] as unknown as string[])[0];
+      assert.ok(session.includes('Path=/dash'), session);
+      await host.get('/dash/').set('Cookie', session.split(';')[0]).expect(200).expect('Content-Type', /html/);
+      await host.get('/dash/api').set('Cookie', session.split(';')[0]).expect(200);
+    } finally {
+      await ticketed.controller.close();
+    }
   });
 
   it('refuses invalid auth options when it is created', () => {
