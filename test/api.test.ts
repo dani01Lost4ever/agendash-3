@@ -106,9 +106,22 @@ describe('HTTP API', () => {
     const invalid = await request.post('/dash/api/jobs/create').send({ jobName: '' }).expect(400);
     assert.deepEqual(invalid.body, { message: 'Job name is required' });
 
-    // A driver or BSON error is logged on the server, not sent to the client
-    const failed = await request.post('/dash/api/jobs/requeue').send({ jobIds: ['not-an-id'] }).expect(404);
-    assert.deepEqual(failed.body, { message: 'Could not requeue the jobs' });
+    const badId = await request.post('/dash/api/jobs/requeue').send({ jobIds: ['not-an-id'] }).expect(400);
+    assert.deepEqual(badId.body, { message: 'Invalid job ID: not-an-id' });
+
+    // A driver error is logged on the server, not sent to the client
+    const { controller } = agendash;
+    const requeueJobs = controller.requeueJobs;
+    const consoleError = console.error;
+    controller.requeueJobs = () => Promise.reject(new Error('connect ECONNREFUSED 10.0.0.5:27017'));
+    console.error = () => {};
+    try {
+      const failed = await request.post('/dash/api/jobs/requeue').send({ jobIds: ['5f0000000000000000000000'] }).expect(500);
+      assert.deepEqual(failed.body, { message: 'Could not requeue the jobs' });
+    } finally {
+      controller.requeueJobs = requeueJobs;
+      console.error = consoleError;
+    }
   });
 
   it('redirects the mount path to its trailing-slash form', async () => {

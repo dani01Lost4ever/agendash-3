@@ -2,7 +2,8 @@
 
 import { applyCredentials, shouldRetry } from './auth';
 
-export type JobStateName = 'running' | 'scheduled' | 'queued' | 'completed' | 'failed' | 'repeating';
+export const JOB_STATES = ['scheduled', 'queued', 'running', 'completed', 'failed', 'repeating', 'disabled'] as const;
+export type JobStateName = (typeof JOB_STATES)[number];
 
 export interface JobDocument {
   _id: string;
@@ -17,6 +18,9 @@ export interface JobDocument {
   failedAt?: string | null;
   failCount?: number;
   failReason?: string;
+  repeatTimezone?: string | null;
+  disabled?: boolean;
+  type?: string;
   [key: string]: unknown;
 }
 
@@ -28,7 +32,19 @@ export type OverviewEntry = { displayName: string; total: number } & Record<JobS
 export interface JobsResponse {
   overview: OverviewEntry[];
   jobs: JobEntry[];
+  totalJobs: number;
   totalPages: number;
+}
+
+export type SortField = 'name' | 'nextRunAt' | 'lastRunAt' | 'lastFinishedAt';
+export type SortDirection = 'asc' | 'desc';
+
+/** Result of run now, disable and enable. */
+export interface JobUpdateResult {
+  /** Jobs the change applied to. */
+  updated: number;
+  /** Jobs left untouched because they are running (or disabled, when running now). */
+  skipped: number;
 }
 
 export interface TaskLog {
@@ -49,6 +65,8 @@ export interface JobsQuery {
   isObjectId: boolean;
   state: string;
   q: string;
+  sortBy?: SortField | '';
+  sortDir?: SortDirection;
 }
 
 export interface NewJob {
@@ -97,7 +115,7 @@ export const api = {
   getConfig(): Promise<{ readOnly: boolean }> {
     return request<{ readOnly: boolean }>('api/config');
   },
-  getJobs({ limit, job, skip, property, isObjectId, state, q }: JobsQuery): Promise<JobsResponse> {
+  getJobs({ limit, job, skip, property, isObjectId, state, q, sortBy, sortDir }: JobsQuery): Promise<JobsResponse> {
     const params = new URLSearchParams({ limit: String(limit), job, skip: String(skip), property });
     if (isObjectId) {
       params.set('isObjectId', 'true');
@@ -106,7 +124,14 @@ export const api = {
       params.set('state', state);
     }
     params.set('q', q);
+    if (sortBy) {
+      params.set('sortBy', sortBy);
+      params.set('sortDir', sortDir ?? 'desc');
+    }
     return request<JobsResponse>(`api?${params.toString()}`);
+  },
+  getJob(jobId: string): Promise<JobEntry> {
+    return request<JobEntry>(`api/jobs/${encodeURIComponent(jobId)}`);
   },
   getTaskLogs(jobId: string): Promise<TaskLog[]> {
     return request<TaskLog[]>(`api/jobs/${encodeURIComponent(jobId)}/logs`);
@@ -116,6 +141,15 @@ export const api = {
   },
   deleteJobs(jobIds: string[]): Promise<{ deleted?: boolean; message?: string }> {
     return post('api/jobs/delete', { jobIds });
+  },
+  runJobs(jobIds: string[]): Promise<JobUpdateResult> {
+    return post('api/jobs/run', { jobIds });
+  },
+  disableJobs(jobIds: string[]): Promise<JobUpdateResult> {
+    return post('api/jobs/disable', { jobIds });
+  },
+  enableJobs(jobIds: string[]): Promise<JobUpdateResult> {
+    return post('api/jobs/enable', { jobIds });
   },
   createJob(job: NewJob): Promise<{ created: boolean }> {
     return post('api/jobs/create', job);
