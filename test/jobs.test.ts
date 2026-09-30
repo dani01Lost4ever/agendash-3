@@ -6,6 +6,11 @@ import Agendash, { type AgendashInstance } from '../src';
 import { objectIdFor } from '../src/utils/object-id';
 import { startAgenda, stopAgenda, waitFor, type TestContext } from './helpers';
 
+/** The error message of an API response. */
+function messageOf(response: { body: unknown }): string {
+  return (response.body as { message: string }).message;
+}
+
 describe('Job actions and queries', () => {
   let context: TestContext;
   let agendash: AgendashInstance;
@@ -84,7 +89,7 @@ describe('Job actions and queries', () => {
     it('answers 400 with a message for an invalid regex', async () => {
       const response = await request.get(`/dash/api?job=${encodeURIComponent('/(/')}`).expect(400);
 
-      assert.match(response.body.message, /Invalid regular expression/);
+      assert.match(messageOf(response), /Invalid regular expression/);
     });
 
     it('filters disabled jobs and counts them in the overview', async () => {
@@ -117,7 +122,7 @@ describe('Job actions and queries', () => {
       await request.get('/dash/api/jobs/5f0000000000000000000000').expect(404);
       const response = await request.get('/dash/api/jobs/not-an-id').expect(400);
 
-      assert.match(response.body.message, /Invalid job ID/);
+      assert.match(messageOf(response), /Invalid job ID/);
     });
   });
 
@@ -214,13 +219,13 @@ describe('Job actions and queries', () => {
       assert.equal(noName.body.message, 'Job name is required');
 
       const noSchedule = await request.post('/dash/api/jobs/create').send({ jobName: 'x' }).expect(400);
-      assert.match(noSchedule.body.message, /schedule or repeat interval/);
+      assert.match(messageOf(noSchedule), /schedule or repeat interval/);
 
       const badInterval = await request
         .post('/dash/api/jobs/create')
         .send({ jobName: 'x', jobRepeatEvery: 'every blue moon' })
         .expect(400);
-      assert.match(badInterval.body.message, /Invalid repeat interval/);
+      assert.match(messageOf(badInterval), /Invalid repeat interval/);
 
       assert.equal(await context.agenda._collection.countDocuments({}), 0);
     });
@@ -229,6 +234,42 @@ describe('Job actions and queries', () => {
   it('POST /api/jobs/delete answers 400 for invalid ids', async () => {
     const response = await request.post('/dash/api/jobs/delete').send({ jobIds: ['nope'] }).expect(400);
 
-    assert.match(response.body.message, /Invalid job ID/);
+    assert.match(messageOf(response), /Invalid job ID/);
+  });
+});
+
+describe('Execution log', () => {
+  let context: TestContext;
+  let agendash: AgendashInstance;
+  let request: ReturnType<typeof supertest>;
+
+  before(async () => {
+    context = await startAgenda();
+    agendash = Agendash(context.agenda);
+    const app = express();
+    app.use('/dash', agendash.middleware);
+    request = supertest(app);
+  });
+
+  after(async () => {
+    await agendash.controller.close();
+    await stopAgenda(context);
+  });
+
+  it('logs a failed run as failed only, not also as completed', async () => {
+    context.agenda.define('failing', () => Promise.reject(new Error('boom')));
+    await context.agenda.start();
+    const job = await context.agenda.now('failing', {});
+    const statuses = async () => {
+      const response = await request.get(`/dash/api/jobs/${String(job.attrs._id)}/logs`).expect(200);
+      return (response.body as Array<{ status: string; message: string }>).map((log) => `${log.status}: ${log.message}`);
+    };
+
+    await waitFor(async () => (await statuses()).some((status) => status.startsWith('failed')));
+    await context.agenda.stop();
+    // Agenda emits 'complete' right after 'fail': give a wrong log entry time to land
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    assert.deepEqual((await statuses()).sort(), ['failed: boom', 'started: Task started']);
   });
 });

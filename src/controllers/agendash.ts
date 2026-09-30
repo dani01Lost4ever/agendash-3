@@ -105,14 +105,15 @@ export class AgendashController {
       }).catch(err => console.error("Agendash: Error logging 'start' event:", err));
     });
 
-    listen('complete', (job) => {
+    // 'complete' also follows a failure, so a successful run is told by 'success'
+    listen('success', (job) => {
       taskLogs.add({
         taskId: job.attrs._id.toString(),
         taskName: job.attrs.name,
         status: 'completed',
         message: 'Task completed successfully',
         data: job.attrs.data,
-      }).catch(err => console.error("Agendash: Error logging 'complete' event:", err));
+      }).catch(err => console.error("Agendash: Error logging 'success' event:", err));
     });
 
     listen('fail', (err, job) => {
