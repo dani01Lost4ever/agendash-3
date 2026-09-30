@@ -1,267 +1,170 @@
 # Agendash Enhanced Dashboard
 
-A significantly enhanced dashboard for [Agenda](https://github.com/agenda/agenda), based on the original [Agendash](https://github.com/sealos/agendash).
+A dashboard for [Agenda](https://github.com/agenda/agenda) jobs, based on the original
+[Agendash](https://github.com/sealos/agendash). It adds pagination, search, execution logs and a
+modern, responsive UI. It is an Express middleware you mount in your own application.
 
-This version focuses on providing a modern user interface, detailed task execution logging, and improved usability.
+![Auto-refresh list of jobs](docs/images/all-jobs.png)
 
----
+## Features
 
-## ✨ Key Enhancements in this Version
+- Job overview by name and state (scheduled, queued, running, completed, failed, repeating), with
+  auto-refresh.
+- Search by job name and by any property of the job document (ObjectId, number, string or
+  `/regex/`), with pagination.
+- Job details, including the job data as JSON.
+- **Execution logs**: every `start`, `complete` and `fail` event is recorded and shown in the job
+  details.
+- Create, requeue and delete jobs, one at a time or in bulk.
+- Responsive UI for desktop and mobile.
 
-*   **Modern User Interface:** Complete overhaul of the frontend using Bootstrap 4/5 principles for a cleaner, more responsive, and visually appealing experience across all components (Sidebar, Job List, Job Details, Modals, etc.).
-*   **Task Execution Logging:**
-  *   Introduced automatic logging for job `start`, `complete`, and `fail` events.
-  *   Logs are stored in a dedicated MongoDB collection (`tasklogs` by default) using Mongoose.
-  *   Added a "Show Execution Logs" button in the Job Details modal to view the specific logs for a selected job.
-*   **Dedicated Mongoose Connection:**
-  *   Agendash now requires a **separate Mongoose connection string** during initialization.
-  *   This connection is used exclusively for the internal task logging model, keeping it independent from your main application's Mongoose connection or Agenda's internal driver connection.
-*   **Improved Modals:** Enhanced styling and user feedback for confirmation modals (Delete, Requeue) and the new Job creation modal, including loading states.
-*   **Code Refinements:** Updated backend logic, improved aggregation queries, and added better error handling. Frontend components were refactored for clarity (e.g., dedicated `task-logs` component).
-*   **Automatic Index Creation:** Necessary Agenda database indexes for sorting are now created automatically when Agenda emits the `ready` event.
+## Requirements
 
----
+- Node.js 20.19 or newer
+- MongoDB (tested with 6.0, 7.0 and 8.2)
+- [`@sealos/agenda`](https://www.npmjs.com/package/@sealos/agenda) 1.2
+- Express 4.19+ or 5
 
-### Features (Including Original)
+## Install
 
-*   Job status auto-refreshes (polling interval configurable via frontend search bar).
-*   Schedule a new job from the UI.
-*   Dive in to see more details about the job, like the JSON data.
-*   **View detailed execution logs for each job.**
-*   Requeue a job (creates a new instance to run immediately).
-*   Delete jobs.
-*   Search jobs by name and metadata (supports querying by Mongo Object ID, numbers, strings, and basic regex).
-*   Pagination.
-*   **Modern, Responsive UI.**
-
----
-
-### Screenshots
-
-#### Dashboard
-
-![Auto-refresh list of jobs](all-jobs.png)
-
----
-
-#### Create jobs
-
-![See job details, requeue or delete jobs](create-job.png)
-
----
-
-#### Search by name, metadata, job status
-
-![Search for a job by name or metadata ](search.png)
-
----
-
-#### Responsive UI
-
-![Mobile UI small devices](mobile-ui-sm.png)
-
-![Mobile UI extra small devices](mobile-ui-xs.png)
-
----
-
-
-# Troubleshooting
-
-### Index for sorting
-
-It may be required to create the following index for faster sorting (see [#24](https://github.com/sealos/agendash/issues/24))
-
-```
-db.agendaJobs.ensureIndex({
-    "nextRunAt" : -1,
-    "lastRunAt" : -1,
-    "lastFinishedAt" : -1
-}, "agendash")
+```bash
+npm install agendash3-rework
 ```
 
-### Install
+`@sealos/agenda`, `express` and `mongodb` are peer dependencies: your application provides them.
 
-```
-npm i agendash3-rework
-```
+## Usage
 
-_Note_: `Agendash` requires mongodb version >2.6.0 to perform the needed aggregate queries. This is your mongo database version, not your node package version! To check your database version, connect to mongo and run `db.version()`.
+```ts
+import express from 'express';
+import { Agenda } from '@sealos/agenda';
+import Agendash from 'agendash3-rework';
 
-### Middleware usage
+const agenda = new Agenda({ db: { address: 'mongodb://127.0.0.1/agendaDb' } });
+const app = express();
 
-#### Express
-
-Agendash provides Express middleware you can use at a specified path, for example this will
-make Agendash available on your site at the `/dash` path. Note: Do not try to mount Agendash
-at the root level like `app.use('/', Agendash(agenda))`.
-
-```js
-var express = require("express");
-var app = express();
-
-// ... your other express middleware like body-parser
-
-var Agenda = require("agenda");
-var Agendash = require("agendash");
-
-var agenda = new Agenda({ db: { address: "mongodb://127.0.0.1/agendaDb" } });
-// or provide your own mongo client:
-// var agenda = new Agenda({mongo: myMongoClient})
-
-const agendash = Agendash(agenda, "mongodb://127.0.0.1/agendaDb");
+const agendash = Agendash(agenda);
 app.use('/dash', agendash.middleware);
 
-// ... your other routes
-
-// ... start your server
+app.listen(3000); // then open http://localhost:3000/dash/
 ```
 
-By mounting Agendash as middleware on a specific path, you may provide your
-own authentication for that path. For example if you have an authenticated
-session using passport, you can protect the dashboard path like this:
+With CommonJS:
 
 ```js
-app.use(
-    "/dash",
-    function (req, res, next) {
-        if (!req.user || !req.user.is_admin) {
-            res.send(401);
-        } else {
-            next();
-        }
-    },
-    AgendashController(agenda)
-);
+const { Agendash } = require('agendash3-rework');
 ```
 
-Other middlewares will come soon in the folder `/lib/middlewares/`.
-You'll just have to update the last line to require the middleware you need:
+`Agendash()` returns `{ middleware, controller }`. `middleware` is an Express app you can mount on
+any path; `/dash` is redirected to `/dash/` so the UI's relative URLs resolve. Call
+`await agendash.controller.close()` on shutdown to detach Agendash from Agenda's events and close
+its dedicated task-log connection, if it opened one.
 
-```js
-app.use(
-    "/agendash",
-    AgendashController(agenda, {
-        middleware: "connect",
-    })
-);
-```
+### Options
 
-Note that if you use a CSRF protection middleware like [`csurf`](https://www.npmjs.com/package/csurf), you might need to [configure it off](https://github.com/sealos/agendash/issues/23#issuecomment-270917949) for Agendash-routes.
-
-#### Hapi
-
-A minimum Node.js version 12 is required for `@hapi/hapi` dependency.
-
-```shell
-npm i @hapi/inert @hapi/hapi
-```
-
-```js
-const agenda = new Agenda().database(
-    "mongodb://127.0.0.1/agendaDb",
-    "agendaJobs"
-);
-
-const server = require("@hapi/hapi").server({
-    port: 3002,
-    host: "localhost",
+```ts
+Agendash(agenda, {
+  taskLogs: {
+    collection: 'tasklogs', // default
+    // Optional: store logs through a dedicated connection instead of Agenda's
+    connectionString: 'mongodb://127.0.0.1/agendash-logs',
+    connectionOptions: { maxPoolSize: 5 }, // MongoDB driver options, plus `dbName`
+  },
 });
-await server.register(require("@hapi/inert"));
-await server.register(
-    AgendashController(agenda, {
-        middleware: "hapi",
-    })
-);
-
-await server.start();
 ```
 
-Then browse to `http://localhost:3002/`.
+| Option | Default | Description |
+| --- | --- | --- |
+| `taskLogs` | `{}` | Execution logging. Pass `false` to turn it off. |
+| `taskLogs.collection` | `'tasklogs'` | Collection that stores the logs. |
+| `taskLogs.connectionString` | Agenda's database | Connection string for a dedicated connection. |
+| `taskLogs.connectionOptions` | `{}` | MongoDB driver options for that connection, plus `dbName`. |
 
-#### Koa
+### Upgrading from 3.x
 
-```shell
-npm i koa koa-bodyparser koa-router koa-static
-```
+The 3.x call with a Mongoose connection string still works and keeps logs on a dedicated
+connection:
 
-```js
-const agenda = new Agenda().database(
-    "mongodb://127.0.0.1/agendaDb",
-    "agendaJobs"
-);
-
-const Koa = require("koa");
-const app = new Koa();
-const middlewares = AgendashController(agenda, {
-    middleware: "koa",
+```ts
+Agendash(agenda, 'mongodb://127.0.0.1/agendaDb', { dbName: 'agendaDb' });
+// same as
+Agendash(agenda, {
+  taskLogs: { connectionString: 'mongodb://127.0.0.1/agendaDb', connectionOptions: { dbName: 'agendaDb' } },
 });
-for (const middleware of middlewares) {
-    app.use(middleware);
-}
-
-await app.listen(3002);
 ```
 
-Then browse to `http://localhost:3002/`.
+Mongoose is no longer a dependency. Logs are written with the MongoDB driver to the same
+`tasklogs` collection with the same document shape, so existing logs remain visible.
+Mongoose-only connection options (`autoIndex`, `bufferCommands`, ...) are ignored, and
+`user`/`pass` are passed to the driver as credentials. Without a connection string, logs go to
+the database Agenda already uses.
 
-#### Fastify
+### Protecting the dashboard
 
-```shell
-npm i fastify
-```
+Anyone who can reach the mount path can create, requeue and delete jobs. Put your own
+authentication in front of it:
 
-```js
-const agenda = new Agenda().database(
-    "mongodb://127.0.0.1/agendaDb",
-    "agendaJobs"
+```ts
+app.use(
+  '/dash',
+  (req, res, next) => (req.user?.isAdmin ? next() : res.sendStatus(401)),
+  agendash.middleware,
 );
-
-const Fastify = require("fastify");
-const fastify = new Fastify();
-
-fastify.register(
-    AgendashController(
-        agenda,
-        { middleware: "fastify" }
-    );
-)
-;
-
-await fastify.listen(3002);
 ```
 
-Then browse to `http://localhost:3002/`.
+If you use a CSRF protection middleware, exclude the Agendash routes from it.
 
-### Standalone usage
+## Task logs
 
-Agendash comes with a standalone Express app which you can use like this:
+Each log entry is stored as:
+
+```json
+{ "taskId": "<job _id>", "taskName": "send email", "status": "started | completed | failed", "message": "...", "timestamp": "...", "data": {} }
+```
+
+The UI shows the latest 100 entries of a job. Logs are never deleted automatically; add a
+[TTL index](https://www.mongodb.com/docs/manual/core/index-ttl/) on `timestamp` if you want them
+to expire.
+
+## Indexes
+
+Agendash creates the indexes it needs for sorting the job list on Agenda's collection and a
+`{ taskId: 1, timestamp: -1 }` index on the task-log collection.
+
+## Development
 
 ```bash
-./node_modules/.bin/agendash3-rework --db=mongodb://localhost/agendaDb --collection=agendaCollection --port=3002
+npm install
+npm run dev        # example server with an in-memory MongoDB on http://localhost:3000
+npm test           # tests against an in-memory MongoDB
+npm run lint
+npm run typecheck
+npm run build      # compiles to dist/
 ```
 
-or like this, for default collection `agendaJobs` and default port `3000`:
+Project layout:
 
-```bash
-./node_modules/.bin/agendash3-rework --db=mongodb://localhost/agendaDb
+```text
+src/
+  index.ts              public exports
+  agendash.ts           Agendash() factory
+  options.ts            options and legacy-signature handling
+  controllers/          job queries and actions
+  http/                 Express middleware, API routes, Content-Security-Policy
+  task-logs.ts          execution log storage
+examples/standalone.ts  development server
+test/                   Mocha tests (mongodb-memory-server)
 ```
 
-If you are using npm >= 5.2, then you can use [npx](https://medium.com/@maybekatz/introducing-npx-an-npm-package-runner-55f7d4bd282b):
+Commits follow [Conventional Commits](https://www.conventionalcommits.org/); releases are
+published by semantic-release from `master`.
 
-```bash
-npx agendash3-rework --db=mongodb://localhost/agendaDb --collection=agendaCollection --port=3002
-```
+## Screenshots
 
-Then browse to `http://localhost:3002/`.
+| Create jobs | Search |
+| --- | --- |
+| ![Create a job](docs/images/create-job.png) | ![Search by name or metadata](docs/images/search.png) |
 
-### Docker usage
-
-Agendash can also be run within a Docker container like this:
-
-```bash
-docker run -p 3000:3000 \
-  --env MONGODB_URI=mongo://myUser:myPass@myHost/myDb \
-  --env COLLECTION=myAgendaCollection sealos/agendash
-```
-
-Then browse to `http://localhost:3000/`.
+| Mobile (small) | Mobile (extra small) |
+| --- | --- |
+| ![Mobile UI small devices](docs/images/mobile-ui-sm.png) | ![Mobile UI extra small devices](docs/images/mobile-ui-xs.png) |
