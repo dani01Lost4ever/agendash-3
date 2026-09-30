@@ -62,7 +62,7 @@ function toDriverOptions(options: LegacyConnectOptions = {}): TaskLogConnectionO
   if (options.user !== undefined && driverOptions.auth === undefined) {
     driverOptions.auth = { username: options.user, password: options.pass };
   }
-  return driverOptions as TaskLogConnectionOptions;
+  return driverOptions;
 }
 
 /**

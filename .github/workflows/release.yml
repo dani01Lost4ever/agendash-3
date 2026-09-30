@@ -14,17 +14,16 @@ jobs:
 
     steps:
       - name: Git checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Use Node.js with cache
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
           cache: 'npm'
-          cache-dependency-path: package-lock.json
 
       - name: Install modules
-        run: npm i --prefer-offline --no-audit
+        run: npm ci --no-audit
 
       - name: Release
         run: npm run release

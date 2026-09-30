@@ -1,84 +1,70 @@
 {
   "name": "agendash3-rework",
   "version": "3.0.6",
-  "description": "A fork of dashboard for Agenda.js with Pagination, Search cpabilities, Log managment and new Graphics",
-  "main": "dist/index.js",
-  "engines": {
-    "node": ">=20.0.0"
-  },
-  "scripts": {
-    "build": "tsc",
-    "dev": "ts-node examples/standalone.ts",
-    "prepublishOnly": "npm run build",
-    "release": "semantic-release",
-    "lint": "eslint ./",
-    "test": "node --require ts-node/register node_modules/mocha/bin/mocha.js --reporter spec --exit -b"
-  },
-  "publishConfig": {
-    "access": "public"
-  },
+  "description": "Dashboard for Agenda jobs with pagination, search, execution logs and a modern UI",
   "keywords": [
     "agenda",
     "agendash",
     "dashboard",
     "job-queues"
   ],
+  "homepage": "https://github.com/dani01Lost4ever/agendash-3#readme",
+  "bugs": {
+    "url": "https://github.com/dani01Lost4ever/agendash-3/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dani01Lost4ever/agendash-3.git"
   },
-  "homepage": "https://github.com/dani01Lost4ever/agendash-3#readme",
   "license": "MIT",
+  "author": "Daniel Busetto",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "files": [
     "dist",
-    "public",
-    "*.png"
-  ],
-  "peerDependencies": {
-    "@sealos/agenda": "^1.2.0",
-    "express": "^5.0.0 || ^4.19.2",
-    "mongodb": "*"
-  },
-  "devDependencies": {
-    "@semantic-release/changelog": "^6.0.3",
-    "@semantic-release/git": "^10.0.1",
-    "@types/express": "^5.0.1",
-    "@types/mocha": "^10.0.6",
-    "@types/node": "^22.14.1",
-    "@types/supertest": "^6.0.2",
-    "@typescript-eslint/eslint-plugin": "^6.20.0",
-    "@typescript-eslint/parser": "^6.20.0",
-    "eslint": "^7.19.0",
-    "express": "^5.0.1",
-    "mocha": "^10.4.0",
-    "mongodb-memory-server": "^10.0.1",
-    "prettier": "^3.3.2",
-    "semantic-release": "^24.0.0",
-    "supertest": "^7.0.0",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.8.3"
-  },
-  "eslintConfig": {
-    "parserOptions": {
-      "ecmaVersion": 2019
-    },
-    "env": {
-      "es6": true,
-      "node": true
-    },
-    "extends": "eslint:recommended"
-  },
-  "eslintIgnore": [
     "public"
   ],
-  "packageManager": "yarn@4.3.0+sha512.1606bef7c84bc7d83b8576063de2fd08f7d69f9939015bed800f9585a002390268ecc777e9feeba7e26e9556aef6beaad4806968db2182ab5dd3e955ab3b9a0b",
-  "directories": {
-    "lib": "lib",
-    "test": "test"
+  "engines": {
+    "node": ">=20.19.0"
   },
-  "author": "Daniel Busetto",
-  "bugs": {
-    "url": "https://github.com/dani01Lost4ever/agendash-3/issues"
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "npm run clean && npm run build:server",
+    "build:server": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "dev": "tsx watch examples/standalone.ts",
+    "lint": "eslint .",
+    "test": "mocha",
+    "prepublishOnly": "npm run build",
+    "release": "semantic-release"
   },
-  "types": "dist/index.d.ts"
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@sealos/agenda": "^1.2.0",
+    "express": "^4.19.2 || ^5.0.0",
+    "mongodb": ">=4.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@sealos/agenda": "^1.2.0",
+    "@semantic-release/changelog": "^7.0.0",
+    "@semantic-release/git": "^11.0.1",
+    "@types/express": "^5.0.6",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.20.4",
+    "@types/supertest": "^7.2.1",
+    "eslint": "^10.11.0",
+    "express": "^5.2.1",
+    "globals": "^17.12.0",
+    "mocha": "^12.0.2",
+    "mongodb-memory-server": "^11.3.0",
+    "prettier": "^3.9.9",
+    "semantic-release": "^25.0.9",
+    "supertest": "^7.3.0",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.0"
+  }
 }

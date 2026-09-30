@@ -5,7 +5,7 @@
     <working-directory />
     <pass-parent-env>true</pass-parent-env>
     <envs>
-      <env name="NODE_OPTIONS" value="--require ts-node/register" />
+      <env name="NODE_OPTIONS" value="--import tsx" />
     </envs>
     <ui />
     <extra-mocha-options />

@@ -79,7 +79,7 @@ export class AgendashController {
     isObjectId: boolean,
     limit: number,
     skip: number
-  }) => {
+  }): Promise<MongoDocument[]> => {
     const preMatch: MongoDocument = {}; // Use MongoDocument type
     if (job) {
       preMatch.name = job;
@@ -89,7 +89,7 @@ export class AgendashController {
       if (options.isObjectId) {
         try { // Add validation for ObjectId
           preMatch[options.property] = new (objectIdFor(this.agenda._collection))(options.query);
-        } catch (e) {
+        } catch {
           console.warn(`Agendash: Invalid ObjectId format provided for query: ${options.query}`);
           // Decide how to handle - return empty, throw, etc. Here we might let the query fail.
           preMatch[options.property] = options.query; // Or maybe set to a value that won't match
@@ -101,7 +101,7 @@ export class AgendashController {
         try {
           const regexPattern = options.query.slice(1, -1);
           preMatch[options.property] = { $regex: regexPattern, $options: 'i' }; // Assume case-insensitive
-        } catch (e) {
+        } catch {
           console.warn(`Agendash: Invalid Regex format provided for query: ${options.query}`);
           preMatch[options.property] = options.query; // Fallback to exact match?
         }
@@ -197,7 +197,7 @@ export class AgendashController {
       .toArray();
   };
 
-  getOverview = async () => {
+  getOverview = async (): Promise<MongoDocument[]> => {
     const collection = this.agenda._collection;
     const results = await collection
       .aggregate([

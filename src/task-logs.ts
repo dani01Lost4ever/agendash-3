@@ -33,7 +33,9 @@ export class TaskLogStore {
   static fromAgenda(agenda: Agenda, collectionName = DEFAULT_TASK_LOG_COLLECTION): TaskLogStore {
     return new TaskLogStore(async () => {
       await agenda._ready;
-      return agenda._mdb;
+      // Agenda may bundle a different major version of the driver than the one this
+      // package resolves; the calls used here are the same in every supported version.
+      return agenda._mdb as unknown as Db;
     }, collectionName);
   }
 

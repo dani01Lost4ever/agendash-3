@@ -105,7 +105,7 @@ async function start() {
 }
 
 // Start the application
-start(); // No top-level await needed here, start handles async internally
+void start(); // No top-level await needed here, start handles async internally
 
 // Optional: Catch unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {

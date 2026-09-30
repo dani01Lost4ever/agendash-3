@@ -1,5 +1,4 @@
 import { ObjectId } from 'mongodb';
-import type { Collection } from 'mongodb';
 
 export interface ObjectIdConstructor {
   new (id?: string): ObjectId;
@@ -18,7 +17,7 @@ interface CollectionInternals {
  * version of `bson`, so ids sent to Agenda's collection must come from Agenda's driver.
  * Falls back to the `mongodb` package this library resolves.
  */
-export function objectIdFor(collection: Collection | undefined): ObjectIdConstructor {
+export function objectIdFor(collection: unknown): ObjectIdConstructor {
   const pkFactory = (collection as CollectionInternals | undefined)?.s?.pkFactory;
   const sample = pkFactory?.createPk?.() as object | undefined;
   const constructor: unknown = sample?.constructor;
