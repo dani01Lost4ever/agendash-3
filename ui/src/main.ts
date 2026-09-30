@@ -15,6 +15,7 @@ import './styles/joblist.css';
 import './styles/jobdetails.css';
 import './styles/newJob.css';
 import './styles/topbar.css';
+import './styles/auth.css';
 
 import App from './App.vue';
 

@@ -1,6 +1,7 @@
 import type { Agenda } from '@sealos/agenda';
 import type { Express } from 'express';
 
+import { createAuthMiddleware, createConfigRouter, createReadOnlyGuard } from './auth';
 import { AgendashController } from './controllers/agendash';
 import { frameAncestorsSources } from './http/csp';
 import { createMiddleware } from './http/router';
@@ -35,9 +36,12 @@ export function Agendash(
   legacyConnectOptions?: LegacyConnectOptions,
 ): AgendashInstance {
   const options = normalizeOptions(optionsOrConnectionString, legacyConnectOptions);
-  // Validated before the controller starts listening to Agenda
+  // Validated before the controller starts listening to Agenda, like the auth options below
   const frameAncestors = frameAncestorsSources(options.frameAncestors);
+  // Built first so that invalid auth options throw before any connection is opened.
+  const before = [createAuthMiddleware(options.auth)];
+  const beforeApi = [createReadOnlyGuard(options.readOnly), createConfigRouter(options)];
   const controller = new AgendashController(agenda, options);
-  const middleware = createMiddleware(controller, { frameAncestors });
+  const middleware = createMiddleware(controller, { before, beforeApi, frameAncestors });
   return { middleware, controller };
 }

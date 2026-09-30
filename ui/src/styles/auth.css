@@ -1,0 +1,27 @@
+/* Login screen and read-only mode, see src/auth.ts */
+
+/* Controls that change jobs carry the agendash-write class and disappear for read-only users. */
+html[data-agendash-readonly] .agendash-write {
+  display: none !important;
+}
+
+html.agendash-login-open body {
+  overflow: hidden;
+}
+
+.agendash-login {
+  position: fixed;
+  inset: 0;
+  /* Above Bootstrap modals and their backdrop */
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(33, 37, 41, 0.6);
+}
+
+.agendash-login-panel {
+  width: 100%;
+  max-width: 360px;
+}
