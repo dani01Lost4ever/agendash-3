@@ -23,6 +23,7 @@ export function createMiddleware(
   expressApp.disable('x-powered-by');
 
   expressApp.use(contentSecurityPolicy());
+  expressApp.use(redirectToTrailingSlash());
   if (before.length > 0) {
     expressApp.use(before);
   }
@@ -30,6 +31,26 @@ export function createMiddleware(
   expressApp.use(express.static(PUBLIC_DIR));
 
   return expressApp;
+}
+
+/**
+ * The UI loads its assets and calls the API with relative URLs, which only resolve under the
+ * mount path when the page URL ends with a slash: `/dash` is redirected to `/dash/`.
+ */
+function redirectToTrailingSlash(): RequestHandler {
+  return (request, response, next) => {
+    const queryStart = request.originalUrl.indexOf('?');
+    const pathname = queryStart === -1 ? request.originalUrl : request.originalUrl.slice(0, queryStart);
+    const isRoot = request.path === '/';
+    if (isRoot && !pathname.endsWith('/') && (request.method === 'GET' || request.method === 'HEAD')) {
+      // Relative target, so the redirect also works behind a proxy that adds a path prefix.
+      const lastSegment = pathname.slice(pathname.lastIndexOf('/') + 1);
+      const search = queryStart === -1 ? '' : request.originalUrl.slice(queryStart);
+      response.redirect(302, `${lastSegment}/${search}`);
+      return;
+    }
+    next();
+  };
 }
 
 export function createApiRouter(agendash: AgendashController): express.Router {

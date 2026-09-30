@@ -102,6 +102,11 @@ describe('HTTP API', () => {
     assert.deepEqual(logs[0].data, { answer: 42 });
   });
 
+  it('redirects the mount path to its trailing-slash form', async () => {
+    await request.get('/dash').expect(302).expect('Location', 'dash/');
+    await request.get('/dash?limit=5').expect(302).expect('Location', 'dash/?limit=5');
+  });
+
   it('serves the dashboard with a Content-Security-Policy header', async () => {
     const response = await request.get('/dash/').expect(200);
 
