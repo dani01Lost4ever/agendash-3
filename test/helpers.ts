@@ -13,8 +13,8 @@ export async function startAgenda(): Promise<TestContext> {
       address: `${mongoServer.getUri()}agendash-test`,
       collection: 'agendash-test-collection',
     },
-    // A number is milliseconds; human-interval reads '100 milliseconds' as 100 seconds.
-    processEvery: 100,
+    // human-interval reads '100 milliseconds' as 100 seconds
+    processEvery: '0.1 seconds',
   });
   await agenda._ready;
   return { mongoServer, agenda };
